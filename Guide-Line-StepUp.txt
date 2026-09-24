@@ -1,0 +1,43 @@
+เริ่มจาก DB → Backend → Frontend → Deploy ทำทีละชั้นให้ทำงานได้จริงก่อนค่อยไปชั้นถัดไป อย่าทำหลายชั้นพร้อมกัน
+
+Phase 0: เตรียมโปรเจกต์ (ครึ่งวัน)
+สร้าง repo แบบ monorepo: backend/, frontend/, deploy/
+ใช้ docker-compose.yml รัน MySQL บนเครื่องตัวเองก่อน ยังไม่ต้องขึ้น cloud
+ใช้ .env เก็บ DB config แล้วใส่ใน .gitignore ตั้งแต่วันแรก
+ถือว่าเสร็จเมื่อ docker compose up แล้วต่อ MySQL ได้
+
+Phase 1: Schema + Migration
+ใช้ golang-migrate เขียน SQL migration เอง ไม่ใช้ AutoMigrate ของ GORM เพราะ AutoMigrate คุม schema ไม่ได้ และตอน deploy จะเจอปัญหา
+สร้าง 3 ตาราง categories, items, transactions ตามที่คุยกันไว้
+ทำ seed หมวดและรายการตามชีต
+ถือว่าเสร็จเมื่อ migrate up/down ได้ และมีข้อมูล seed อยู่
+
+Phase 2: Backend ทีละ layer
+ทำ ทีละ resource ให้ครบทุกชั้น อย่าทำ model ทั้งหมดก่อนแล้วค่อยทำ repo ทั้งหมด
+
+categories + items: CRUD พื้นฐาน เพื่อทำความคุ้นเคยกับ pattern
+transactions: CRUD และ filter ตามช่วงวันที่
+summary: endpoint หลักของเมนูนี้
+GET  /api/categories
+POST /api/transactions
+GET  /api/transactions?from=2026-09-01&to=2026-09-30
+GET  /api/summary?year=2026        ← ตารางแบบในชีต
+เขียน unit test ที่ service ของ summary (คำนวณรวม, เงินออม, %) โดย mock repository ชั้นนี้คุ้มที่สุดที่จะ test
+ทดสอบ API ด้วย Bruno หรือ Postman ก่อนเริ่มทำ frontend
+ถือว่าเสร็จเมื่อ ยิง /summary?year=2026 แล้วตัวเลขตรงกับในไฟล์ Excel
+
+Phase 3: Import ข้อมูลเก่า
+เขียนสคริปต์ Go (cmd/import) อ่าน xlsx ด้วย excelize แล้วแปลงเป็น transaction
+ขั้นนี้ช่วยให้มีข้อมูลจริงไว้ทดสอบ summary และเป็นตัว verify ว่า logic ถูก
+Phase 4: Frontend
+ใช้ Vite + React + TanStack Query (จัดการ fetch/cache) ส่วน UI ใช้ Tailwind หรือ shadcn
+ลำดับหน้า: ฟอร์มเพิ่มรายการ → ตารางสรุปรายปี → กราฟ (กราฟใส่ทีหลังได้)
+Phase 5: Deploy
+เขียน Dockerfile ของ backend และ frontend (build static แล้วให้ Caddy serve)
+ขึ้น Oracle VM แล้วเดินตาม DevOps roadmap เดิมต่อ
+สิ่งที่ควรตัดสินใจตั้งแต่ต้น
+Auth: ถ้าจะขึ้น internet ต้องมี login ตั้งแต่ก่อน deploy ครั้งแรก เพราะเป็นข้อมูลการเงินส่วนตัว ใช้แค่ user เดียว + JWT ก็พอ ไม่ต้องทำระบบสมัครสมาชิก
+เงิน: DECIMAL(12,2) ใน DB และ shopspring/decimal ใน Go
+Timezone: ตั้ง parseTime=true&loc=Asia%2FBangkok ใน DSN ไม่งั้นรายการตอนเที่ยงคืนจะเลื่อนเดือนผิด
+ถ้าจะเริ่มเลย ผมทำ Phase 0–1 ให้ได้ (โครง repo, docker compose, migration, seed) แล้วคุณค่อยลงมือเขียน layer ต่างๆ เองตาม Phase 2 เพื่อให้ได้ฝึกจริงครับ
+
