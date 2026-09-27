@@ -1,0 +1,61 @@
+
+Ref: users.id < password_reset_otps.user_id       // one-to-many
+Ref: users.id < categories.user_id       // one-to-many
+Ref: categories.id < items.category_id       // one-to-many
+Ref: items.id < transactions.item_id       // one-to-many
+Enum category_type {
+  income
+  expense
+}
+
+Table users  {
+  id varchar [pk, increment]
+  email  varchar unique [not null]
+  username varchard
+  password_hash varchar(255)
+  phone varchar 
+  token_version int
+  created_at datetime
+  updated_at datetime
+}
+
+Table password_reset_otps {
+  id varchar [pk, increment]
+  user_id int
+  otp_hash varchar
+  expiration_date datetime
+  is_use tinyint(1)
+  num_of_wrong int
+  created_at datetime
+}
+
+Table categories {
+  id varchar [pk, increment]
+  name varchar
+  is_active tinyint(1)
+  user_id int
+  type category_type [not null]
+  created_at datetime
+  updated_at datetime
+}
+
+Table items {
+  id varchar [pk, increment]
+  name varchar
+  category_id int
+  is_active tinyint(1)
+  created_at datetime
+  updated_at datetime
+}
+
+Table transactions {
+  id varchar [pk, increment]
+  amount decimal(12,2)
+  item_id int
+  txn_date date
+  note varchar
+  created_at datetime
+  updated_at datetime
+}
+
+

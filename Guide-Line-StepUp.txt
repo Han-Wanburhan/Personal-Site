@@ -41,3 +41,28 @@ Auth: ถ้าจะขึ้น internet ต้องมี login ตั้ง
 Timezone: ตั้ง parseTime=true&loc=Asia%2FBangkok ใน DSN ไม่งั้นรายการตอนเที่ยงคืนจะเลื่อนเดือนผิด
 ถ้าจะเริ่มเลย ผมทำ Phase 0–1 ให้ได้ (โครง repo, docker compose, migration, seed) แล้วคุณค่อยลงมือเขียน layer ต่างๆ เองตาม Phase 2 เพื่อให้ได้ฝึกจริงครับ
 
+-----------
+ลำดับที่แนะนำ
+
+1. ปิดงาน backend ที่ค้างอยู่
+แก้ AUTO_INCREMENT → reset DB → ไล่ checklist auth ใน Postman ให้ผ่าน
+
+2. หน้าบ้านขั้นต่ำ
+
+Setup Vite + React TS + proxy
+หน้า Login
+หน้า Home แสดงชื่อ user จาก /me + ปุ่ม logout
+Protected route: ถ้ายังไม่ login ให้เด้งไปหน้า login
+
+แค่นี้พอ ไม่ต้องสวย เป้าคือให้ flow ครบ
+
+3. Deploy แบบ manual ก่อน ⭐
+
+Dockerfile ของ back และ front
+deploy/docker-compose.prod.yml (Caddy + API + MySQL + migrate)
+ขึ้น VM ด้วยมือ ให้เข้าผ่าน HTTPS ได้
+
+4. แล้วค่อยทำ CI/CD
+push → test → build image → deploy อัตโนมัติ
+
+หลักสำคัญ: automate เฉพาะสิ่งที่ทำด้วยมือผ่านแล้ว ถ้าทำ pipeline ตั้งแต่ยังไม่เคย deploy ด้วยมือสำเร็จ พอพังจะไม่รู้เลยว่าพังเพราะ pipeline หรือเพราะ config ของ server
