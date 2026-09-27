@@ -10,8 +10,8 @@ API Document
 {{baseUrl}}/api/auth/register (Post Method)
 body
 {
-"Email" : "Hansgter10761@gmail.com",
-"Username" : "Han",
-"Phone" : "0898571590",
-"Password" : "Hang10761"
+"Email" : "xxx@gmail.com",
+"Username" : "xxx",
+"Phone" : "xxxxxxxxxx",
+"Password" : "xxx"
 }
