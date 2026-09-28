@@ -1,0 +1,33 @@
+# SITE_ADDRESS comes from the environment:
+#   ":80"              -> plain HTTP (local testing)
+#   "money.example.com" -> automatic HTTPS with Let's Encrypt
+{$SITE_ADDRESS}
+
+encode zstd gzip
+
+header {
+	X-Content-Type-Options nosniff
+	X-Frame-Options DENY
+	Referrer-Policy strict-origin-when-cross-origin
+	-Server
+}
+
+# API: forward to the Go container (service name "api" in docker compose)
+handle /api/* {
+	reverse_proxy api:8080
+}
+
+# Frontend: static files, with a fallback to index.html so React Router
+# can handle /login, /register, ... on refresh.
+handle {
+	root * /srv
+
+	# Vite puts a content hash in asset file names, so they can be cached forever
+	header /assets/* Cache-Control "public, max-age=31536000, immutable"
+	# Everything else (index.html) is checked every time, so a new deploy shows up at once
+	@notAssets not path /assets/*
+	header @notAssets Cache-Control "no-cache"
+
+	try_files {path} /index.html
+	file_server
+}

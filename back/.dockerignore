@@ -1,0 +1,7 @@
+# Keep the build context small and never copy secrets into the image
+.env
+*.exe
+*.test
+*.out
+tmp/
+migrations/
