@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { PALETTES } from './palettes'
 import { useTheme } from './useTheme'
 
-// Palette picker (popover) + quick light/dark toggle.
 const POP_WIDTH = 300
 const EDGE = 16 // keep the popover this far from the screen edges
 
+// Palette picker (popover) + quick light/dark toggle.
 export function ThemeControls() {
   const { mode, palette, setMode, toggleMode, setPalette } = useTheme()
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
   const open = pos !== null
 
   // Place the popover under the buttons, right-aligned, but clamped inside the
@@ -20,14 +22,16 @@ export function ThemeControls() {
     if (!r) return
     const width = Math.min(POP_WIDTH, window.innerWidth - EDGE * 2)
     const left = Math.max(EDGE, Math.min(r.right - width, window.innerWidth - width - EDGE))
-    setPos({ top: r.bottom + 8, left, width })
+    const top = r.bottom + 8
+    setPos({ top, left, width, maxHeight: window.innerHeight - top - EDGE })
   }
 
   useEffect(() => {
     if (!open) return
     const close = () => setPos(null)
     const onPointer = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) close()
+      const t = e.target as Node
+      if (!ref.current?.contains(t) && !popRef.current?.contains(t)) close()
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
@@ -66,8 +70,10 @@ export function ThemeControls() {
         {mode === 'dark' ? <MoonIcon /> : <SunIcon />}
       </button>
 
-      {pos && (
-        <div className="theme-pop" role="dialog" aria-label="Appearance" style={pos}>
+      {/* Portal to <body>: the sticky top bar's backdrop-filter would otherwise
+          make position:fixed relative to the bar instead of the screen. */}
+      {pos && createPortal(
+        <div ref={popRef} className="theme-pop" role="dialog" aria-label="Appearance" style={pos}>
           <h3>Appearance</h3>
           <div className="seg" role="group" aria-label="Mode">
             {(['light', 'dark'] as const).map((m) => (
@@ -100,7 +106,8 @@ export function ThemeControls() {
               </button>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
