@@ -27,5 +27,22 @@ services:
       timeout: 3s
       retries: 20
 
+  # Run migrations on demand (not started by `docker compose up`):
+  #   docker compose run --rm migrate up
+  #   docker compose run --rm migrate down 1
+  #   docker compose run --rm migrate version
+  migrate:
+    image: migrate/migrate:v4.18.3
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./back/migrations:/migrations:ro
+    entrypoint:
+      - migrate
+      - -path=/migrations
+      - -database=mysql://${DB_USER}:${DB_PASSWORD}@tcp(db:3306)/${DB_NAME}?multiStatements=true
+
 volumes:
   mysql_data:
