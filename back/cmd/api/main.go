@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 
 	"github.com/Han-Wanburhan/personal-site/back/internal/config"
 	"github.com/Han-Wanburhan/personal-site/back/internal/database"
@@ -35,10 +36,10 @@ func main() {
 	log.Println("db connected")
 
 	// 3. fiber + routes
-	// 3. fiber + routes
 	app := fiber.New(fiber.Config{
 		ErrorHandler: handler.ErrorHandler,
 	})
+	app.Use(logger.New()) // log every request: status, latency, method, path
 
 	validate := handler.NewValidator()
 
