@@ -66,3 +66,11 @@ deploy/docker-compose.prod.yml (Caddy + API + MySQL + migrate)
 push → test → build image → deploy อัตโนมัติ
 
 หลักสำคัญ: automate เฉพาะสิ่งที่ทำด้วยมือผ่านแล้ว ถ้าทำ pipeline ตั้งแต่ยังไม่เคย deploy ด้วยมือสำเร็จ พอพังจะไม่รู้เลยว่าพังเพราะ pipeline หรือเพราะ config ของ server
+
+
+dcp logs -f api        # follow api logs live (Ctrl+C to stop watching)
+dcp restart api        # restart just the api
+dcp down               # stop and remove containers (data in volumes is KEPT)
+dcp down -v            # ⚠️ also DELETE the volumes = delete the database
+
+Get-Content $HOME\.ssh\oracle_passbook.pub
