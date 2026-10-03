@@ -77,3 +77,47 @@ Get-Content $HOME\.ssh\oracle_passbook.pub
 
 
 scp -i $HOME\.ssh\oracle_passbook deploy\.env.prod han@192.168.1.42:~/Personal-Site/deploy/
+
+connect prod vm
+ - ssh passbook-vm
+connect prod test
+ - ssh passbook-test
+
+
+step start vm test
+on vm
+    ssh -o PubkeyAuthentication=no han@TEST_IP  #connect to ssh 
+    mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo 'YOUR KEY' > ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys  #make directory, add permision, save key
+    exit
+on your pc
+    #save this line in .ssh\config
+    Host passbook-test
+        HostName TEST_IP
+        User han
+        IdentityFile ~/.ssh/passbook_ed25519
+    
+    ssh -o PasswordAuthentication=no passbook-test "hostname" # for test connect
+on vm 
+    sudo ufw allow OpenSSH && sudo ufw allow 80/tcp && sudo ufw allow 443 && sudo ufw enable # allow fire wall and open port 
+
+    # install docker
+    sudo apt update && sudo apt install -y ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    sudo usermod -aG docker $USER
+    exit
+
+    git clone https://github.com/Han-Wanburhan/Personal-Site.git  #clone repo
+on your pc
+    scp deploy\.env.test passbook-test:~/Personal-Site/deploy/.env.prod  #secure copy env(on pc) to server with ssh  
+
+on vm 
+    # Run Docker
+    cd ~/Personal-Site
+    chmod 600 deploy/.env.prod
+    docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+    docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod ps -a
+

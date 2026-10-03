@@ -2,5 +2,6 @@
 .env.local
 .env.test
 .env.prod
+.env.uat
 
 backups/
