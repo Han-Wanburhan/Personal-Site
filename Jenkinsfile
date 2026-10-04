@@ -1,6 +1,11 @@
 pipeline {
   agent any
 
+  environment {
+    TEST_HOST = '192.168.1.43'
+    PROD_HOST = '192.168.1.42'            // passbook-prod's IP
+  }
+
   options {
     timestamps()                 // time on every log line
     disableConcurrentBuilds()    // one build at a time (no two deploys fighting)
@@ -59,7 +64,7 @@ pipeline {
       steps {
         sshagent(credentials: ['deploy-ssh']) {          // the credential ID you created in J.3
           sh """
-            ssh han@192.168.1.43 '
+            ssh han@${env.TEST_HOST} '
               cd ~/Personal-Site &&
               git fetch --quiet origin &&
               git checkout --quiet --detach ${env.GIT_COMMIT} &&
@@ -72,10 +77,51 @@ pipeline {
 
     stage('Smoke test') {
       steps {
-        sh 'curl -fsS -o /dev/null http://192.168.1.43/'                    // the website answers?
-        sh 'test "$(curl -s -o /dev/null -w "%{http_code}" http://192.168.1.43/api/me)" = 401'   // the API answers?
+        sh 'curl -fsS -o /dev/null http://$TEST_HOST/'                    // the website answers?
+        sh 'test "$(curl -s -o /dev/null -w "%{http_code}" http://$TEST_HOST/api/me)" = 401'   // the API answers?
       }
     }
+
+        stage('Approve prod') {
+      steps {
+        script {
+          try {
+            timeout(time: 15, unit: 'MINUTES') {
+              input message: 'Deploy this build to prod?', ok: 'Deploy'
+            }
+            env.DEPLOY_PROD = 'true'
+          } catch (err) {
+            echo 'Prod deploy skipped (aborted or timed out).'
+            env.DEPLOY_PROD = 'false'
+          }
+        }
+      }
+    }
+
+    stage('Deploy to prod') {
+      when { environment name: 'DEPLOY_PROD', value: 'true' }
+      steps {
+        sshagent(credentials: ['deploy-ssh']) {
+          sh """
+            ssh han@${env.PROD_HOST} '
+              cd ~/Personal-Site &&
+              git fetch --quiet origin &&
+              git checkout --quiet --detach ${env.GIT_COMMIT} &&
+              docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+            '
+          """
+        }
+      }
+    }
+
+    stage('Smoke test prod') {
+      when { environment name: 'DEPLOY_PROD', value: 'true' }
+      steps {
+        sh 'curl -fsS -o /dev/null http://$PROD_HOST/'
+        sh 'test "$(curl -s -o /dev/null -w "%{http_code}" http://$PROD_HOST/api/me)" = 401'
+      }
+    }
+
 
   }
 }
