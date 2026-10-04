@@ -59,7 +59,7 @@ pipeline {
       steps {
         sshagent(credentials: ['deploy-ssh']) {          // the credential ID you created in J.3
           sh """
-            ssh han@192.168.1.43 '                            # passbook-test's IP
+            ssh han@192.168.1.43 '
               cd ~/Personal-Site &&
               git fetch --quiet origin &&
               git checkout --quiet --detach ${env.GIT_COMMIT} &&
