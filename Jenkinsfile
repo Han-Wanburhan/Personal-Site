@@ -33,6 +33,7 @@ pipeline {
           reuseNode true
         }
       }
+      
       environment {
         HOME       = "${WORKSPACE}"
         GOCACHE    = "${WORKSPACE}/.cache/go-build"
