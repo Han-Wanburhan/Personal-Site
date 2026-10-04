@@ -121,3 +121,99 @@ on vm
     docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
     docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod ps -a
 
+
+
+on vm ops 
+    # delete port
+    sudo ufw delete allow 80/tcp
+    sudo ufw delete allow 443
+    sudo ufw allow from 192.168.1.0/24 to any port 8080 proto tcp
+    sudo ufw status
+
+
+Server	                    Its job	        Open ports
+passbook-test / prod	Serve the website	22, 80, 443
+passbook-ops	        CI/CD + tools	    22, 8080 (home network only)
+
+
+
+Jenkins Service
+    # Step 1: Install Java 21
+    sudo apt update
+    sudo apt install -y fontconfig openjdk-21-jre
+    java -version
+
+    # Step 2: Add Jenkins' official package source
+    sudo wget -O /etc/apt/keyrings/jenkins-keyring.asc https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+    sudo apt update
+
+    # Step 3: Install Jenkins
+    sudo apt install -y jenkins
+
+    # Step 4: Let Jenkins use Docker
+    sudo usermod -aG docker jenkins
+    sudo systemctl restart jenkins
+
+    ✅ Checks
+    systemctl status jenkins --no-pager
+    sudo -u jenkins docker ps
+    sudo ss -ltnp | grep 8080
+
+    # Get the unlock password (in passbook-ops)
+    sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+
+    # Install the 2 extra plugins your pipeline needs
+    Docker Pipeline	
+    SSH Agent
+
+
+    J.3: A deploy key just for Jenkins
+        # Step 1: Create the key (in passbook-ops)
+        ssh-keygen -t ed25519 -N "" -C "jenkins-deploy@passbook-ops" -f ~/jenkins_deploy
+        cat ~/jenkins_deploy.pub
+
+
+        # Step 2: Allow it on test and prod, but only from passbook-ops
+        ssh passbook-test "echo 'from=\"192.168.1.44\" PASTE_PUB_LINE' >> ~/.ssh/authorized_keys"
+        ssh passbook-vm   "echo 'from=\"192.168.1.44\" PASTE_PUB_LINE' >> ~/.ssh/authorized_keys"
+        ✅ Checks
+        cat -A ~/.ssh/authorized_keys
+
+        #Step 3: Let the jenkins user trust test and prod
+        sudo -u jenkins mkdir -p /var/lib/jenkins/.ssh
+        ssh-keyscan -H 192.168.1.43 192.168.1.42 | sudo -u jenkins tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null
+        sudo -u jenkins chmod 600 /var/lib/jenkins/.ssh/known_hosts
+        sudo -u jenkins wc -l /var/lib/jenkins/.ssh/known_hosts
+
+        # Step 4: Test the deploy key (onn your pc)
+        ssh -i ~/jenkins_deploy -o IdentitiesOnly=yes han@192.168.1.43 hostname
+        ssh -i ~/jenkins_deploy -o IdentitiesOnly=yes han@192.168.1.42 hostname
+
+        # Step 5: Store the private key in Jenkins (browser)
+        cat ~/jenkins_deploy
+        
+        ```
+        2. In Jenkins (http://192.168.1.44:8080): Manage Jenkins → Credentials → System → Global credentials (unrestricted) → Add Credentials   
+        Field	Value
+        Kind	SSH Username with private key
+        ID	deploy-ssh
+        Description	Deploy key for passbook-test and passbook-prod
+        Username	han
+        Private Key	⦿ Enter directly → Add → paste everything, from -----BEGIN to -----END ... KEY-----
+        Passphrase	Empty
+        → Create	
+
+        ```
+
+        # Step 6: Delete the key file (in passbook-ops)
+        shred -u ~/jenkins_deploy
+        ls ~/jenkins_deploy*
+
+
+
+
+
+
+
+
+
