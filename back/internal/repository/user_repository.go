@@ -10,9 +10,8 @@ import (
 )
 
 var (
-	ErrNotFound    = errors.New("record not found")
-	ErrDuplicate   = errors.New("duplicate record")
-	ErrInvalidName = errors.New("name must not be empty")
+	ErrNotFound  = errors.New("record not found")
+	ErrDuplicate = errors.New("duplicate record")
 )
 
 type UserRepository interface {

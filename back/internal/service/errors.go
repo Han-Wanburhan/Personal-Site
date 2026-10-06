@@ -14,4 +14,10 @@ var (
 	ErrCategoryNotFound  = errors.New("category not found")
 	ErrCategoryNameTaken = errors.New("category name already taken")
 	ErrInvalidName       = errors.New("name must not be empty")
+
+	ErrItemNotFound  = errors.New("item not found")
+	ErrItemNameTaken = errors.New("item name already taken in this category")
+
+	ErrTransactionNotFound = errors.New("transaction not found")
+	ErrInvalidAmount       = errors.New("amount must be greater than 0 with at most 2 decimals")
 )

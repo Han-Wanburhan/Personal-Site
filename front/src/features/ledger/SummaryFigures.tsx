@@ -1,42 +1,51 @@
 import { formatMoney, formatPercent, MONTHS } from '../../lib/format'
-import type { MonthSummary } from './sample'
+import type { MonthFigures } from './summary'
 
 interface Props {
-  current: MonthSummary
-  previous?: MonthSummary
+  current: MonthFigures
+  previous?: MonthFigures
 }
 
-const rateOf = (m: MonthSummary) => (m.income > 0 ? ((m.income - m.expense) / m.income) * 100 : 0)
-const change = (now: number, before: number) => ((now - before) / before) * 100
+// Percentage change, or null when there is nothing to compare with.
+const change = (now: number, before: number) => (before > 0 ? ((now - before) / before) * 100 : null)
 
 export function SummaryFigures({ current, previous }: Props) {
   const short = MONTHS[current.month - 1].slice(0, 3)
-  const prevName = previous ? MONTHS[previous.month - 1] : null
-  const saved = current.income - current.expense
-  const rate = rateOf(current)
+  const prevName = previous ? MONTHS[previous.month - 1] : ''
+  const incomeChange = previous ? change(current.income, previous.income) : null
+  const expenseChange = previous ? change(current.expense, previous.expense) : null
+  const rate = current.rate
 
   return (
     <div className="figures">
       <div className="fig">
         <div className="eyebrow">Income · {short}</div>
         <div className="fig-value"><small>฿</small>{formatMoney(current.income)}</div>
-        {previous && <Delta value={change(current.income, previous.income)} goodWhenUp label={prevName!} />}
+        {incomeChange !== null && <Delta value={incomeChange} goodWhenUp label={prevName} />}
       </div>
       <div className="fig">
         <div className="eyebrow">Expenses · {short}</div>
         <div className="fig-value"><small>฿</small>{formatMoney(current.expense)}</div>
-        {previous && <Delta value={change(current.expense, previous.expense)} goodWhenUp={false} label={prevName!} />}
+        {expenseChange !== null && <Delta value={expenseChange} goodWhenUp={false} label={prevName} />}
       </div>
       <div className="fig">
         <div className="eyebrow">Saved · {short}</div>
-        <div className={`fig-value ${saved >= 0 ? 'up' : 'down'}`}><small>฿</small>{formatMoney(saved)}</div>
+        <div className={`fig-value ${current.saved >= 0 ? 'up' : 'down'}`}>
+          <small>฿</small>
+          {current.saved < 0 ? '−' : ''}
+          {formatMoney(Math.abs(current.saved))}
+        </div>
         <div className="delta">Income minus expenses</div>
       </div>
       <div className="fig">
         <div className="eyebrow">Savings rate</div>
-        <div className="fig-value">{formatPercent(rate)}</div>
-        <div className="meter"><i style={{ width: `${Math.max(0, Math.min(rate, 100))}%` }} /></div>
-        {previous && <div className="delta">{prevName}: {formatPercent(rateOf(previous))}</div>}
+        <div className="fig-value">{rate === null ? '—' : formatPercent(rate)}</div>
+        <div className="meter"><i style={{ width: `${Math.max(0, Math.min(rate ?? 0, 100))}%` }} /></div>
+        {rate === null ? (
+          <div className="delta">No income this month yet</div>
+        ) : (
+          previous && previous.rate !== null && <div className="delta">{prevName}: {formatPercent(previous.rate)}</div>
+        )}
       </div>
     </div>
   )
