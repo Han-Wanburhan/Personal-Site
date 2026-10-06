@@ -65,6 +65,7 @@ func main() {
 	itemHandler := handler.NewItemHandler(itemService, validate)
 	txnHandler := handler.NewTransactionHandler(txnService, validate)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
+	importHandler := handler.NewImportHandler(db)
 	requireAuth := middleware.RequireAuth(authService)
 
 	app.Get("/health", healthHandler.Check)
@@ -92,6 +93,8 @@ func main() {
 	txns.Delete("/:id", txnHandler.Delete)
 
 	api.Get("/summary", requireAuth, summaryHandler.Year)
+	api.Post("/import/sheets", requireAuth, importHandler.Sheets) // list the sheets of an uploaded workbook
+	api.Post("/import", requireAuth, importHandler.Excel) // upload the old Excel workbook
 
 	// 4. start server
 	serverErr := make(chan error, 1)

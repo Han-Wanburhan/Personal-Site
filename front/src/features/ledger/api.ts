@@ -59,6 +59,15 @@ function refreshMoney(qc: ReturnType<typeof useQueryClient>) {
   ])
 }
 
+// After an import: new categories, items and transactions all at once.
+export function refreshLedger(qc: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: keys.categories }),
+    qc.invalidateQueries({ queryKey: keys.items }),
+    refreshMoney(qc),
+  ])
+}
+
 // ---------- queries ----------
 
 export function useCategories() {

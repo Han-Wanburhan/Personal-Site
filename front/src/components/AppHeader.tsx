@@ -19,6 +19,7 @@ export function AppHeader() {
             Overview
           </NavLink>
           <NavLink to="/transactions">Transactions</NavLink>
+          <NavLink to="/import">Import</NavLink>
         </nav>
       </div>
       <div className="user">

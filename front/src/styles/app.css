@@ -252,3 +252,17 @@ select.input {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- import page ---------- */
+.file-input { height: auto; padding: 10px 12px; }
+.file-input::file-selector-button { margin-right: 12px; height: 30px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.import-items td:first-child { color: var(--ink); }
+.import-items td:nth-child(2) { font-family: var(--body); color: var(--ink-2); text-align: left; }
+.import-items th:nth-child(2) { text-align: left; }
+.import-items td.up { color: var(--income); }
+.day-select { height: 34px; width: auto; padding: 0 8px; font-family: var(--body); }
+.import-confirm { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 16px 20px 20px; }
+.import-confirm p { margin: 0; color: var(--ink-2); }
+.import-done p { color: var(--ink-2); }
+.import-links { display: flex; gap: 10px; flex-wrap: wrap; }
+.import-links .btn { text-decoration: none; }
