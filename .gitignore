@@ -5,3 +5,6 @@
 .env.uat
 
 backups/
+
+# private data for back/cmd/import (Excel workbook, days.txt)
+/import/

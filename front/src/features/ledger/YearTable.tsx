@@ -1,22 +1,33 @@
 import { formatPercent, formatWhole, MONTHS } from '../../lib/format'
-import type { MonthSummary } from './sample'
+import type { MonthFigures } from './summary'
 
 interface Props {
   year: number
-  months: MonthSummary[]
-  currentMonth: number
+  months: MonthFigures[] // the months to show figures for; the rest show "—"
+  total: MonthFigures
+  currentMonth: number // highlighted row, 0 for none
+  totalLabel: string
+  onPrev: () => void
+  onNext: () => void
+  nextDisabled: boolean
+  loading: boolean
 }
 
-export function YearTable({ year, months, currentMonth }: Props) {
+export function YearTable({ year, months, total, currentMonth, totalLabel, onPrev, onNext, nextDisabled, loading }: Props) {
   const byMonth = new Map(months.map((m) => [m.month, m]))
-  const totalIncome = months.reduce((s, m) => s + m.income, 0)
-  const totalExpense = months.reduce((s, m) => s + m.expense, 0)
-  const totalSaved = totalIncome - totalExpense
 
   return (
-    <section className="panel">
+    <section className="panel" aria-busy={loading}>
       <div className="panel-head">
         <h2>{year} by month</h2>
+        <div className="month-nav" role="group" aria-label="Year">
+          <button type="button" className="icon-btn" aria-label="Previous year" onClick={onPrev}>
+            ‹
+          </button>
+          <button type="button" className="icon-btn" aria-label="Next year" onClick={onNext} disabled={nextDisabled}>
+            ›
+          </button>
+        </div>
       </div>
       <div className="table-wrap">
         <table className="year-table">
@@ -39,35 +50,38 @@ export function YearTable({ year, months, currentMonth }: Props) {
                   </tr>
                 )
               }
-              const saved = m.income - m.expense
-              const rate = m.income > 0 ? (saved / m.income) * 100 : 0
               return (
                 <tr key={name} className={m.month === currentMonth ? 'current' : undefined}>
                   <td>{name}</td>
                   <td>{formatWhole(m.income)}</td>
                   <td>{formatWhole(m.expense)}</td>
-                  <td className={saved >= 0 ? 'up' : 'down'}>{formatWhole(saved)}</td>
-                  <td>
-                    <span className="rate">
-                      {formatPercent(rate)}
-                      <span className="rate-bar"><i style={{ width: `${Math.max(0, Math.min(rate, 100))}%` }} /></span>
-                    </span>
-                  </td>
+                  <td className={m.saved >= 0 ? 'up' : 'down'}>{formatWhole(m.saved)}</td>
+                  <td><Rate rate={m.rate} /></td>
                 </tr>
               )
             })}
           </tbody>
           <tfoot>
             <tr>
-              <td>Year to date</td>
-              <td>{formatWhole(totalIncome)}</td>
-              <td>{formatWhole(totalExpense)}</td>
-              <td className={totalSaved >= 0 ? 'up' : 'down'}>{formatWhole(totalSaved)}</td>
-              <td>{formatPercent(totalIncome > 0 ? (totalSaved / totalIncome) * 100 : 0)}</td>
+              <td>{totalLabel}</td>
+              <td>{formatWhole(total.income)}</td>
+              <td>{formatWhole(total.expense)}</td>
+              <td className={total.saved >= 0 ? 'up' : 'down'}>{formatWhole(total.saved)}</td>
+              <td>{total.rate === null ? '—' : formatPercent(total.rate)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
     </section>
+  )
+}
+
+function Rate({ rate }: { rate: number | null }) {
+  if (rate === null) return <>—</>
+  return (
+    <span className="rate">
+      {formatPercent(rate)}
+      <span className="rate-bar"><i style={{ width: `${Math.max(0, Math.min(rate, 100))}%` }} /></span>
+    </span>
   )
 }
