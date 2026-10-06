@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"github.com/Han-Wanburhan/personal-site/back/internal/config"
 	"github.com/Han-Wanburhan/personal-site/back/internal/database"
@@ -39,15 +40,20 @@ func main() {
 	app := fiber.New(fiber.Config{
 		ErrorHandler: handler.ErrorHandler,
 	})
-	app.Use(logger.New()) // log every request: status, latency, method, path
+	app.Use(recover.New()) // a panic in one request returns 500 instead of crashing the server
+	app.Use(logger.New())  // log every request: status, latency, method, path
 
 	validate := handler.NewValidator()
 
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, cfg.Auth)
 
+	categoryRepo := repository.NewCategoryRepository(db)
+	categoryService := service.NewCategoryService(categoryRepo)
+
 	healthHandler := handler.NewHealthHandler(db)
 	authHandler := handler.NewAuthHandler(authService, validate)
+	categoryHandler := handler.NewCategoryHandler(categoryService, validate)
 	requireAuth := middleware.RequireAuth(authService)
 
 	app.Get("/health", healthHandler.Check)
@@ -56,6 +62,11 @@ func main() {
 	api.Post("/auth/register", authHandler.Register)
 	api.Post("/auth/login", authHandler.Login)
 	api.Get("/me", requireAuth, authHandler.Me)
+
+	categories := api.Group("/categories", requireAuth) // every category route needs a login
+	categories.Get("/", categoryHandler.List)
+	categories.Post("/", categoryHandler.Create)
+	categories.Put("/:id", categoryHandler.Update)
 
 	// 4. start server
 	serverErr := make(chan error, 1)

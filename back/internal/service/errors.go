@@ -10,4 +10,8 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrRegisterDisabled   = errors.New("registration is disabled")
 	ErrInvalidToken       = errors.New("invalid token")
+
+	ErrCategoryNotFound  = errors.New("category not found")
+	ErrCategoryNameTaken = errors.New("category name already taken")
+	ErrInvalidName       = errors.New("name must not be empty")
 )
