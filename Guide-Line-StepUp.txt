@@ -392,9 +392,230 @@ Jenkins Service
         Paste me the 2 stages when you've filled them in, if you'd like a check before pushing 💪
 
 
+Priority 4 · Monitoring (on passbook-ops) 
+    Lesson 1: Uptime Kuma
+    1.1 Expose the API health check (PC, small Go change)
+    Your API already has /health, which pings the database and answers {"status":"ok"}. But Caddy only forwards /api/* to the Go server, so it can't be reached from outside. Add one route in back/cmd/api/main.go, right after api := app.Group("/api"):
+
+
+    api.Get("/health", healthHandler.Check) // for Uptime Kuma: reachable through Caddy as /api/health
+    Test it locally: run go run ./cmd/api, then curl localhost:8080/api/health should print {"status":"ok"}.
+
+    Commit and push it with your other changes. Once Jenkins has deployed, http://192.168.1.43/api/health and later http://192.168.1.42/api/health will work.
+
+    Why not just check the homepage? The homepage is served by Caddy alone. It still loads when the Go API or MySQL is dead. /api/health goes Caddy → Go → MySQL, so if it says ok, the whole stack works.
+
+    1.2 Create ops/docker-compose.yml (PC, in the repo)
+
+    # Monitoring tools that run on passbook-ops (Jenkins is installed on the VM itself, not here).
+    # Start:  docker compose -f ops/docker-compose.yml up -d
+    name: ops
+
+    services:
+    uptime-kuma:
+        image: louislam/uptime-kuma:2
+        restart: unless-stopped        # comes back after a crash or a VM reboot
+        ports:
+        - "3001:3001"                # web UI on http://192.168.1.44:3001
+        volumes:
+        - uptime-kuma:/app/data      # monitors, history and your login survive updates
+
+    volumes:
+    uptime-kuma:
+    name: ops keeps these containers separate from anything else on the VM (they'll be named ops-uptime-kuma-1).
+    The named volume matters. Without it, deleting the container would also delete all your monitors and history.
+    If pulling :2 fails, use louislam/uptime-kuma:1. It works the same for what we need.
+    Commit and push it. This file holds no secrets, so it's safe in the repo.
+
+    1.3 Start it on passbook-ops
+
+    ssh passbook-ops
+    git clone https://github.com/Han-Wanburhan/personal-site.git ~/Personal-Site   # first time only
+    cd ~/Personal-Site && git pull
+    docker compose -f ops/docker-compose.yml up -d
+    docker compose -f ops/docker-compose.yml ps    # should show "Up"
+    Firewall note (important to understand): ports published by Docker skip ufw. Docker writes its own iptables rules, which run before ufw's, so ufw allow/deny 3001 has no effect. That's fine here, because the ops VM only lives on your home network. Just remember the rule for later: never publish a database or admin port with Docker on a server that has a public IP.
+
+    1.4 First login
+    Open http://192.168.1.44:3001 on your PC, choose SQLite if it asks for a database, and create the admin user. Use a strong password; it's your monitoring login.
+
+    1.5 Add the monitors
+    Click + Add New Monitor for each row:
+
+    Name	Type	URL	Keyword
+    prod · site	HTTP(s)	http://192.168.1.42/	—
+    prod · api	HTTP(s) - Keyword	http://192.168.1.42/api/health	"status":"ok"
+    test · site	HTTP(s)	http://192.168.1.43/	—
+    test · api	HTTP(s) - Keyword	http://192.168.1.43/api/health	"status":"ok"
+    jenkins	HTTP(s)	http://192.168.1.44:8080/login	—
+    For all of them: Heartbeat interval 60 seconds and Retries 2. With retries, one slow answer doesn't count as down; it has to fail 3 times in a row.
+
+    Use the VM's IP for Jenkins, not localhost. Inside the Kuma container, localhost means the container itself.
+    The api monitors stay red until step 1.1 is deployed. That's expected.
+    1.6 Test that it really notices (on passbook-test)
+
+    ssh passbook-test
+    cd ~/Personal-Site
+    docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod stop api
+    Within about 2–3 minutes, test · api turns red and test · site stays green. That's the difference between the two checks.
+
+    Then bring it back:
+
+
+    docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod start api
+    Done when:
+
+    ops/docker-compose.yml is in the repo.
+    Kuma runs on :3001.
+    All 5 monitors are green.
+    You've seen test · api go red and come back.
+    Tell me when you've finished 1.1–1.2 (I'll check the files) or when you get stuck. For Lesson 2 I'll suggest Discord or Telegram alerts, because LINE Notify was shut down in March 2025, so the "LINE" option in older guides no longer works.
+
+    # Allow Kuma Test Jenkins
+    
+    sudo ufw allow from 172.18.0.0/16 to any port 8080 proto tcp comment 'uptime-kuma -> jenkins'
+    sudo ufw status numbered
+
+    sudo hostnamectl set-hostname passbook-ops
+    sudo sed -i 's/paassboook-ops/passbook-ops/g' /etc/hosts
+
+
+    Lesson 2: Alerts to your phone
+
+    Kuma only shows red on its web page right now, and you won't see that unless the page is open. Next we make it message you when something goes down and again when it comes back.
+
+    Pick one:
+
+    Telegram ⭐ my pick	Discord
+    Setup	make a bot with @BotFather	make a webhook in a channel
+    Phone notification	yes, like a normal chat message	yes, if the Discord app allows notifications
+    Good if	you want alerts like a chat	you already use Discord
+    Option A: Telegram
+    Make the bot. In Telegram, search @BotFather → send /newbot.
+    Name: Passbook Alerts
+    Username: must end in bot, e.g. han_passbook_bot
+    BotFather replies with a token like 7123456789:AAH.... Copy it.
+    Start a chat with your bot. Open your new bot → press Start → send hi. A bot can't message you until you've messaged it first.
+    Connect it in Kuma (http://192.168.1.44:3001): avatar menu → Settings → Notifications → Setup Notification.
+    Notification Type: Telegram
+    Bot Token: paste the token
+    Chat ID: click Auto Get, which fills it from your hi message
+    Tick Default enabled and Apply on all existing monitors
+    Click Test. You should get a message from your bot. Then click Save.
+    Option B: Discord
+    Make a server for yourself (or use one) → create a channel #alerts.
+    Channel ⚙ Edit → Integrations → Webhooks → New Webhook → name it Uptime Kuma → Copy Webhook URL.
+    In Kuma: Settings → Notifications → Setup Notification.
+    Type: Discord, then paste the Webhook URL.
+    Tick Default enabled and Apply on all existing monitors → Test → Save.
+    🔒 The bot token or webhook URL is a secret: anyone who has it can send messages as your bot. It's saved inside Kuma's volume, not in the repo. Don't paste it into git or chat (including here).
+
+    2.4 Real test (on passbook-test)
+
+    ssh passbook-test
+    cd ~/Personal-Site
+    docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod stop api
+    After about 2–3 minutes (1 check plus 2 retries), you should get "❌ test · api … Down".
+    Then run ... start api, and you should get "✅ … Up" about a minute later.
+    Done when: your phone got the Down and the Up message.
+
+    One thing to know: if the whole passbook-ops VM stops, Kuma stops too, and nobody tells you. That's normal for a home lab. It's fine for now, and later we can add a small outside check.
+
+    After alerts work, Lesson 3 puts node_exporter + cAdvisor on test and prod, so you can see CPU, RAM, disk and containers. Want me to tick ops compose file and Uptime Kuma on your checklist now?
 
 
 
+    Lesson 3: Exporters on passbook-test and passbook-prod
+    Kuma only tells you "up or down". For "how full is the disk, is RAM running out, which container eats CPU", each server needs small programs that publish its numbers. These are called exporters:
+
+    Exporter	Reports	Port
+    node_exporter	the whole VM: CPU, RAM, disk, network, uptime	9100
+    cAdvisor	each container: CPU and RAM per container (api, db, web…)	8081
+    Lesson 4's Prometheus (on ops) will fetch these numbers every 15 seconds. So the exporter ports must be reachable from passbook-ops only.
+
+    3.1 Create deploy/docker-compose.monitoring.yml (PC, in the repo)
+
+    # Metrics exporters for passbook-test and passbook-prod, scraped by Prometheus on passbook-ops.
+    # Start on each server:  docker compose -f deploy/docker-compose.monitoring.yml up -d
+    # network_mode: host = the ports belong to the VM itself, so ufw rules apply
+    # (ports published the normal Docker way would skip ufw, see Lesson 1).
+    name: monitoring
+
+    services:
+    node-exporter:
+        image: quay.io/prometheus/node-exporter:v1.8.2
+        restart: unless-stopped
+        network_mode: host            # listens on :9100, sees the VM's real network cards
+        pid: host                     # sees the VM's processes, not just its own
+        command:
+        - --path.rootfs=/host
+        volumes:
+        - /:/host:ro,rslave         # read-only view of the VM's disk, for disk usage
+
+    cadvisor:
+        image: gcr.io/cadvisor/cadvisor:v0.49.1
+        restart: unless-stopped
+        network_mode: host
+        privileged: true              # needs to read container stats from the kernel
+        devices:
+        - /dev/kmsg
+        command:
+        - --port=8081               # default 8080 is a common port; keep it free
+        - --docker_only=true        # only real containers, less noise
+        - --housekeeping_interval=30s  # collect every 30 s instead of 1 s: much less CPU
+        volumes:
+        - /:/rootfs:ro
+        - /var/run:/var/run:ro
+        - /sys:/sys:ro
+        - /var/lib/docker/:/var/lib/docker:ro
+        - /dev/disk/:/dev/disk:ro
+    Why network_mode: host this time? In Lesson 1 you learned that ports published with ports: skip ufw. With host networking there's no Docker port publishing: the exporter just listens on the VM, so your ufw rules protect it. That's exactly what we want here.
+    Every mount is :ro (read-only), so the exporters can look but never change anything.
+    Commit and push it. Jenkins doesn't start this file (it only runs the prod compose), so you start it by hand once. restart: unless-stopped keeps it running after reboots.
+
+    3.2 Firewall first (on passbook-test, then passbook-prod)
+
+    sudo ufw allow from 192.168.1.44 to any port 9100 proto tcp comment 'prometheus -> node_exporter'
+    sudo ufw allow from 192.168.1.44 to any port 8081 proto tcp comment 'prometheus -> cadvisor'
+    sudo ufw status numbered
+    Only the ops VM (192.168.1.44) is allowed. Every other device on your Wi-Fi gets blocked.
+
+    3.3 Start the exporters (on each server)
+
+    cd ~/Personal-Site && git pull
+    docker compose -f deploy/docker-compose.monitoring.yml up -d
+    docker compose -f deploy/docker-compose.monitoring.yml ps     # both "Up"
+    curl -s localhost:9100/metrics | grep node_memory_MemAvailable_bytes
+    curl -s localhost:8081/metrics | grep -m3 container_memory_usage_bytes
+    Each curl should print lines of numbers. That's what Prometheus will read.
+
+    3.4 Prove "ops only"
+    From passbook-ops, these should print numbers:
+
+
+    curl -s -m 5 192.168.1.43:9100/metrics | head -3
+    curl -s -m 5 192.168.1.42:8081/metrics | head -3
+    From your PC (PowerShell), this should time out after about 5 s with no answer:
+
+
+    curl.exe -m 5 http://192.168.1.43:9100/metrics
+    A timeout from the PC is the correct result. It means the firewall works.
+
+    Prometheus will run in a container on ops. Its traffic leaves the ops VM with the source address 192.168.1.44 (Docker rewrites it on the way out), so the rule above lets it in. That's the opposite direction from the Kuma → Jenkins problem.
+
+    Extra: add the exporters to Kuma
+    Add two HTTP(s) – Keyword monitors per server, so Discord tells you if an exporter dies:
+
+    http://192.168.1.43:9100/metrics with keyword node_exporter_build_info
+    http://192.168.1.43:8081/metrics with keyword cadvisor_version_info
+    Do the same for .42.
+
+    Done when:
+
+    Both exporters are Up on test and prod.
+    curl from ops works.
+    curl from the PC times out.
+    Paste your output if anything fails, for example from docker compose ... ps or sudo ufw status numbered. Next is Lesson 4: Prometheus on ops, which collects all of this.
 
 
 
