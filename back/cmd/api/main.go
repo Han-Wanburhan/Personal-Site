@@ -71,6 +71,7 @@ func main() {
 	app.Get("/health", healthHandler.Check)
 
 	api := app.Group("/api")
+	api.Get("/health", healthHandler.Check) // for Uptime Kuma: reachable through Caddy as /api/health
 	api.Post("/auth/register", authHandler.Register)
 	api.Post("/auth/login", authHandler.Login)
 	api.Get("/me", requireAuth, authHandler.Me)
@@ -94,7 +95,7 @@ func main() {
 
 	api.Get("/summary", requireAuth, summaryHandler.Year)
 	api.Post("/import/sheets", requireAuth, importHandler.Sheets) // list the sheets of an uploaded workbook
-	api.Post("/import", requireAuth, importHandler.Excel) // upload the old Excel workbook
+	api.Post("/import", requireAuth, importHandler.Excel)         // upload the old Excel workbook
 
 	// 4. start server
 	serverErr := make(chan error, 1)

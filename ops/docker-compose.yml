@@ -1,0 +1,15 @@
+# Monitoring tools that run on passbook-ops (Jenkins is installed on the VM itself, not here).
+# Start:  docker compose -f ops/docker-compose.yml up -d
+name: ops
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    restart: unless-stopped # comes back after a crash or a VM reboot
+    ports:
+      - "3001:3001" # web UI on http://192.168.1.44:3001
+    volumes:
+      - uptime-kuma:/app/data # monitors, history and your login survive updates
+
+volumes:
+  uptime-kuma:
