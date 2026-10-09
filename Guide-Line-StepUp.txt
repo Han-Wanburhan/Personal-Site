@@ -617,7 +617,52 @@ Priority 4 · Monitoring (on passbook-ops)
     curl from the PC times out.
     Paste your output if anything fails, for example from docker compose ... ps or sudo ufw status numbered. Next is Lesson 4: Prometheus on ops, which collects all of this.
 
+    If Error 
+    
+    I found the cause and the fix.
+
+    Why cAdvisor can't see your containers
+    dockerVersion="" plus no container names means cAdvisor v0.49.1 can't talk to Docker.
+    v0.49.1 is from 2024. Your VMs run a Docker Engine installed recently from docker.com, and newer Docker versions refuse the old API version that this cAdvisor speaks. So cAdvisor quietly falls back to reporting only the VM.
+    cAdvisor has also moved to a new registry:
+    Registry	Newest tag there
+    gcr.io/cadvisor/cadvisor (old)	v0.55.1, no longer updated
+    ghcr.io/google/cadvisor (new)	v0.60.6 (Sep 2026) ✅
+    Fix (you do it)
+    1. On your PC, change one line in deploy/docker-compose.monitoring.yml:
 
 
+        image: ghcr.io/google/cadvisor:v0.60.6
+    Keep everything else (flags, volumes, --port=8081) as it is. Commit and push to main.
+
+    2. Let Jenkins deploy it. Test updates automatically; prod updates after you approve.
+
+    3. On passbook-test, then passbook-prod:
+
+
+    cd ~/Personal-Site
+    git log --oneline -1                                          # your new commit
+    docker compose -f deploy/docker-compose.monitoring.yml up -d  # pulls v0.60.6 and replaces only cadvisor
+    docker compose -f deploy/docker-compose.monitoring.yml ps
+    4. Check from passbook-ops:
+
+
+    curl -s 192.168.1.43:8081/metrics | grep cadvisor_version_info | grep -o 'dockerVersion="[^"]*"'
+    curl -s 192.168.1.43:8081/metrics | grep container_memory_usage_bytes | grep -o 'name="[^"]*"' | sort -u
+    The first line should show a real version, e.g. dockerVersion="29.x.x".
+    The second should list deploy-api-1, deploy-db-1, deploy-web-1, plus monitoring-cadvisor-1 and monitoring-node-exporter-1.
+    Repeat the check for .42 after prod is updated.
+
+    If it's still empty after the upgrade, run these on that server and paste the output:
+
+
+    docker version --format '{{.Server.Version}} (API {{.Server.APIVersion}}, min {{.Server.MinAPIVersion}})'
+    docker logs monitoring-cadvisor-1 2>&1 | tail -20
+    Results so far:
+
+    node_exporter works on both servers ✅
+    the firewall blocks your PC ✅
+    cAdvisor serves metrics from both servers ✅ (but it doesn't see containers yet)
+    When the container names show up, Lesson 3 is done.
 
 
