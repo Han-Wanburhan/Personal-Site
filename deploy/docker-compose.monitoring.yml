@@ -6,7 +6,7 @@ name: monitoring
 
 services:
   node-exporter:
-    image: quay.io/prometheus/node-exporter:v1.8.2
+    image: ghcr.io/google/cadvisor:v0.60.6
     restart: unless-stopped
     network_mode: host # listens on :9100, sees the VM's real network cards
     pid: host # sees the VM's processes, not just its own
