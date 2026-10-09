@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { AddFab } from '../components/AddFab'
 import { AppHeader } from '../components/AppHeader'
 import { useItems, useTransactions, type Transaction } from '../features/ledger/api'
 import { formatSatang, toSatang } from '../features/ledger/money'
@@ -160,6 +161,8 @@ export function TransactionsPage() {
           />
         </div>
       </div>
+
+      <AddFab />
 
       {toast && (
         <div className="toast" role="status">

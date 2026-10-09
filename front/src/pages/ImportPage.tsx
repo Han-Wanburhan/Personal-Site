@@ -108,7 +108,7 @@ export function ImportPage() {
         </div>
       </div>
 
-      <div className="grid">
+      <div className="grid import-grid">
         <section className="panel" aria-busy={importExcel.isPending}>
           {done ? (
             <>

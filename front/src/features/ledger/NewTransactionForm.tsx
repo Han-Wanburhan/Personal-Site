@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
+import { ADD_FORM_ID } from '../../components/AddFab'
 import { ApiError } from '../../lib/api'
 import { todayISO } from '../../lib/format'
 import {
@@ -115,7 +116,7 @@ export function NewTransactionForm({ onSaved }: Props) {
   const loading = categoriesQ.isPending || itemsQ.isPending
 
   return (
-    <section className="panel">
+    <section className="panel add-panel" id={ADD_FORM_ID}>
       <div className="panel-head">
         <h2>Add transaction</h2>
       </div>

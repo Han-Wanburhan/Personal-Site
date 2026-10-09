@@ -212,47 +212,6 @@ select.input {
 .inline-add .input { flex: 1; min-width: 0; }
 .inline-add .btn { height: 46px; }
 
-/* ---------- responsive ---------- */
-@media (max-width: 900px) {
-  .login { grid-template-columns: 1fr; padding-block: 16px; }
-  .login-art { border-radius: 18px 18px 0 0; min-height: 300px; padding: 28px; }
-  .login-form { border-left: 1px solid var(--rule); border-top: 0; border-radius: 0 0 18px 18px; padding: 72px 24px 32px; }
-  .stub { display: none; }
-  .grid { grid-template-columns: 1fr; }
-  .figures { grid-template-columns: 1fr 1fr; }
-  .fig:nth-child(3) { border-left: 0; }
-  .fig:nth-child(n+3) { border-top: 1px solid var(--rule); }
-  .figures-3 { grid-template-columns: repeat(3, 1fr); }
-  .figures-3 .fig:nth-child(3) { border-left: 1px solid var(--rule); border-top: 0; }
-  /* nav moves to its own row under the brand */
-  .topbar { flex-wrap: wrap; row-gap: 10px; }
-  .topbar-left { display: contents; }
-  .nav { order: 3; width: 100%; }
-}
-@media (max-width: 600px) {
-  .figures-3 { grid-template-columns: 1fr; }
-  .figures-3 .fig + .fig, .figures-3 .fig:nth-child(3) { border-left: 0; border-top: 1px solid var(--rule); }
-  .day-head { padding-inline: 16px; }
-}
-@media (max-width: 480px) {
-  .user-meta, .avatar { display: none; }
-  .user { gap: 8px; }
-  .brand { font-size: 18px; }
-  .two { grid-template-columns: 1fr; }
-  .fig { padding: 16px; }
-  .fig-value { font-size: 19px; }
-  .panel-head { padding-inline: 16px; }
-  .add { padding-inline: 16px; }
-  .toast { left: 16px; right: 16px; text-align: center; }
-}
-/* Phones and tablets: 16px inputs stop iOS Safari from zooming on focus */
-@media (max-width: 900px), (pointer: coarse) {
-  .input { font-size: 16px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
-}
-
 /* ---------- import page ---------- */
 .file-input { height: auto; padding: 10px 12px; }
 .file-input::file-selector-button { margin-right: 12px; height: 30px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink); cursor: pointer; }
@@ -266,3 +225,130 @@ select.input {
 .import-done p { color: var(--ink-2); }
 .import-links { display: flex; gap: 10px; flex-wrap: wrap; }
 .import-links .btn { text-decoration: none; }
+
+/* ---------- phone-only pieces (hidden on wide screens) ---------- */
+.nav a { display: inline-flex; align-items: center; gap: 6px; }
+.nav svg { display: none; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.m-short { display: none; }
+.fab { display: none; }
+.add-panel { scroll-margin-top: 84px; } /* clear the sticky top bar when the + button scrolls here */
+
+/* ---------- responsive ---------- */
+/* Tablets: one column, nav on its own row under the brand */
+@media (max-width: 900px) {
+  .login { grid-template-columns: 1fr; padding-block: 16px; }
+  .login-art { border-radius: 18px 18px 0 0; min-height: 300px; padding: 28px; }
+  .login-form { border-left: 1px solid var(--rule); border-top: 0; border-radius: 0 0 18px 18px; padding: 72px 24px 32px; }
+  .stub { display: none; }
+  .grid { grid-template-columns: 1fr; }
+  .figures { grid-template-columns: 1fr 1fr; }
+  .fig:nth-child(3) { border-left: 0; }
+  .fig:nth-child(n+3) { border-top: 1px solid var(--rule); }
+  .figures-3 { grid-template-columns: repeat(3, 1fr); }
+  .figures-3 .fig:nth-child(3) { border-left: 1px solid var(--rule); border-top: 0; }
+  .topbar { flex-wrap: wrap; row-gap: 10px; }
+  .topbar-left { display: contents; }
+  .nav { order: 3; width: 100%; }
+}
+
+/* Phones: bottom tab bar, floating + button, content reordered */
+@media (max-width: 720px) {
+  .home { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  /* no backdrop-filter here: it would trap the fixed tab bar inside the header */
+  .topbar { flex-wrap: nowrap; padding-block: 10px; background: var(--paper); backdrop-filter: none; }
+
+  .nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; width: auto;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+    padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface); border-top: 1px solid var(--rule);
+    box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, .3);
+  }
+  .nav a { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 4px; border-radius: 12px; font-size: 11.5px; font-weight: 500; color: var(--ink-3); }
+  .nav svg { display: block; }
+  .nav a[aria-current="page"] { background: var(--accent-soft); box-shadow: none; color: var(--accent); }
+
+  .fab {
+    display: grid; place-items: center; position: fixed; z-index: 19;
+    right: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    width: 54px; height: 54px; border: 0; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink); cursor: pointer;
+    box-shadow: 0 10px 24px -8px rgba(0, 0, 0, .4);
+  }
+  .fab svg { width: 24px; height: 24px; }
+  .fab:active { transform: scale(.96); }
+  .toast { left: 16px; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); text-align: center; }
+
+  .hello { padding-block: 20px 16px; }
+  .grid { gap: 16px; margin-top: 16px; }
+  .side { gap: 16px; }
+
+  /* Overview: Recent first, then the year table, the add form last (the + button jumps to it) */
+  .home-grid .side { display: contents; }
+  .home-grid .side > :last-child { order: -1; }
+  /* Import: choose the workbook before the preview */
+  .import-grid .side { order: -1; }
+}
+
+@media (max-width: 600px) {
+  /* Transactions figures: one compact row each instead of three tall boxes */
+  .figures-3 { grid-template-columns: 1fr; }
+  .figures-3 .fig { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 16px; }
+  .figures-3 .fig + .fig, .figures-3 .fig:nth-child(3) { border-left: 0; border-top: 1px solid var(--rule); }
+  .day-head { padding-inline: 16px; }
+
+  /* tables fit the screen instead of scrolling sideways */
+  .year-table { min-width: 0; font-size: 13px; }
+  .year-table th, .year-table td { padding: 8px 6px; }
+  .year-table th { font-size: 10.5px; letter-spacing: .04em; }
+  .year-table th:first-child, .year-table td:first-child { padding-left: 16px; }
+  .year-table th:last-child, .year-table td:last-child { padding-right: 16px; }
+  .year-table tfoot td:first-child { white-space: normal; }
+  .rate-bar { display: none; }
+  .m-full { display: none; }
+  .m-short { display: inline; }
+
+  /* transaction rows: smaller tag, bigger touch targets */
+  .txns { padding-inline: 4px; }
+  .txn { gap: 10px; padding: 10px; }
+  .day .txn { column-gap: 8px; }
+  .txn-tag { width: 30px; height: 30px; font-size: 11px; }
+  .txn-btn { width: 34px; height: 34px; }
+  .day .txn.txn-confirm { grid-template-columns: 1fr; }
+  .day .txn.txn-confirm .txn-actions { justify-content: flex-end; gap: 8px; }
+  .txn-edit { padding: 12px; }
+
+  /* Import "day of the month": each item becomes a two-line card */
+  .import-items thead { display: none; }
+  .import-items tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
+  .year-table.import-items td, .year-table.import-items td:first-child, .year-table.import-items td:last-child { padding: 0; border: 0; text-align: left; white-space: normal; background: none; }
+  .year-table.import-items td:nth-child(1) { grid-column: 1; grid-row: 1; font-weight: 500; }
+  .year-table.import-items td:nth-child(2) { grid-column: 1; grid-row: 2; font-size: 12.5px; }
+  .year-table.import-items td:nth-child(3) { grid-column: 2; grid-row: 1; text-align: right; }
+  .year-table.import-items td:nth-child(4) { grid-column: 2; grid-row: 2; text-align: right; }
+  .import-confirm { padding-inline: 16px; }
+  .import-confirm .btn { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .user-meta, .avatar { display: none; }
+  .user { gap: 8px; }
+  .brand { font-size: 18px; }
+  .two { grid-template-columns: 1fr; }
+  .fig { padding: 14px 16px; }
+  .fig-value { font-size: 19px; }
+  .hello h1 { font-size: 26px; }
+  .panel-head { padding-inline: 16px; }
+  .add { padding-inline: 16px; }
+  .login-art { min-height: 220px; padding: 22px; }
+  .art-copy h1 { font-size: 30px; }
+  .login-form { padding: 64px 20px 28px; }
+}
+/* Phones and tablets: 16px inputs stop iOS Safari from zooming on focus */
+@media (max-width: 900px), (pointer: coarse) {
+  .input { font-size: 16px; }
+  .day-select { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

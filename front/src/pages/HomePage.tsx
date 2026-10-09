@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { AddFab } from '../components/AddFab'
 import { AppHeader } from '../components/AppHeader'
 import { useMe } from '../features/auth/hooks'
 import { useTransactions } from '../features/ledger/api'
@@ -85,7 +86,7 @@ export function HomePage() {
         <div className="panel empty-state load-error">Loading your figures…</div>
       )}
 
-      <div className="grid">
+      <div className="grid home-grid">
         {table ? (
           <YearTable
             year={year}
@@ -110,6 +111,8 @@ export function HomePage() {
           <RecentList txns={(recentQ.data ?? []).slice(0, 5)} loading={recentQ.isPending} />
         </div>
       </div>
+
+      <AddFab />
 
       {toast && (
         <div className="toast" role="status">

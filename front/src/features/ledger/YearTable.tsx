@@ -37,7 +37,7 @@ export function YearTable({ year, months, total, currentMonth, totalLabel, onPre
               <th>Income</th>
               <th>Expenses</th>
               <th>Saved</th>
-              <th>Savings rate</th>
+              <th><span className="m-full">Savings rate</span><span className="m-short">Rate</span></th>
             </tr>
           </thead>
           <tbody>
@@ -46,13 +46,13 @@ export function YearTable({ year, months, total, currentMonth, totalLabel, onPre
               if (!m) {
                 return (
                   <tr key={name} className="future">
-                    <td>{name}</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                    <td><MonthName name={name} /></td><td>—</td><td>—</td><td>—</td><td>—</td>
                   </tr>
                 )
               }
               return (
                 <tr key={name} className={m.month === currentMonth ? 'current' : undefined}>
-                  <td>{name}</td>
+                  <td><MonthName name={name} /></td>
                   <td>{formatWhole(m.income)}</td>
                   <td>{formatWhole(m.expense)}</td>
                   <td className={m.saved >= 0 ? 'up' : 'down'}>{formatWhole(m.saved)}</td>
@@ -73,6 +73,16 @@ export function YearTable({ year, months, total, currentMonth, totalLabel, onPre
         </table>
       </div>
     </section>
+  )
+}
+
+// Full name on wide screens, "Sep" on phones.
+function MonthName({ name }: { name: string }) {
+  return (
+    <>
+      <span className="m-full">{name}</span>
+      <span className="m-short">{name.slice(0, 3)}</span>
+    </>
   )
 }
 
