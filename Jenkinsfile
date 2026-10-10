@@ -68,7 +68,9 @@ pipeline {
               cd ~/Personal-Site &&
               git fetch --quiet origin &&
               git checkout --quiet --detach ${env.GIT_COMMIT} &&
-              docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+              docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build &&
+              docker image prune -f &&
+              docker builder prune -f --filter until=168h
             '
           """
         }
@@ -107,8 +109,9 @@ pipeline {
               cd ~/Personal-Site &&
               git fetch --quiet origin &&
               git checkout --quiet --detach ${env.GIT_COMMIT} &&
-              docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
-            '
+              docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build &&
+              docker image prune -f &&
+              docker builder prune -f --filter until=168h            '
           """
         }
       }
@@ -124,4 +127,12 @@ pipeline {
 
 
   }
+  post {
+    always {
+      // the images from 'Docker images' only prove the Dockerfiles build; remove them so ops doesn't fill up
+      sh 'docker rmi passbook-api:${BUILD_NUMBER} passbook-web:${BUILD_NUMBER} || true'
+      sh 'docker builder prune -f --filter until=168h'
+    }
+  }
 }
+
