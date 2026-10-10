@@ -770,3 +770,115 @@ Priority 4 · Monitoring (on passbook-ops)
     The free-disk and RAM queries show numbers for test and prod.
     Kuma's "prometheus" monitor is green.
     Paste me the targets page result or the query output if you want me to check. Then Lesson 5: Grafana, with real dashboards for your VMs and containers.
+
+
+    Give the unused disk to / on test, prod and ops (LVM uses ~12 of 27 GB)
+    sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+    df -h /
+
+    Clean old images after each deploy (docker image prune -f in the Jenkins deploy stages) 
+    
+    docker builder prune -f
+    docker image prune -f
+    df -h /
+
+
+
+    Lesson 5: Grafana (o6 + m6)
+    Step 1: Data source file (PC)
+    New file: ops/grafana/provisioning/datasources/prometheus.yml
+
+
+    # Loaded by Grafana at start-up: Prometheus as the default data source.
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy               # Grafana's server calls Prometheus (not your browser)
+        url: http://prometheus:9090 # service name: same compose network, no IP needed
+        isDefault: true
+        editable: false             # change it here in git, not in the UI
+    This connects Grafana to Prometheus automatically, so you never have to click it together by hand.
+
+    Step 2: Grafana service in ops/docker-compose.yml (PC)
+    Add this under services: (after prometheus):
+
+
+    grafana:
+        image: grafana/grafana:13.2.3
+        restart: unless-stopped
+        depends_on:
+        - prometheus
+        env_file: .env                      # ops/.env: the admin password (NOT in git)
+        environment:
+        GF_SECURITY_ADMIN_USER: admin
+        GF_USERS_ALLOW_SIGN_UP: "false"   # nobody can create their own account
+        GF_ANALYTICS_REPORTING_ENABLED: "false"
+        GF_SERVER_ROOT_URL: http://192.168.1.44:3000
+        ports:
+        - "3000:3000"                     # http://192.168.1.44:3000
+        volumes:
+        - ./grafana/provisioning:/etc/grafana/provisioning:ro
+        - grafana:/var/lib/grafana        # dashboards, users, alert rules survive restarts
+    And add one line to volumes: at the bottom:
+
+
+    volumes:
+    uptime-kuma:
+    prometheus:
+    grafana:
+    Commit and push. Send me "check" first if you want me to look at the file.
+
+    Step 3: Password and start (passbook-ops)
+
+    cd ~/Personal-Site && git pull
+    echo "GF_SECURITY_ADMIN_PASSWORD=$(openssl rand -base64 18)" > ops/.env
+    chmod 600 ops/.env
+    cat ops/.env                                   # save this password in your password manager
+    docker compose -f ops/docker-compose.yml up -d
+    docker compose -f ops/docker-compose.yml ps    # grafana, prometheus, uptime-kuma: Up
+    Grafana reads this password only on its first start. Changing ops/.env later does nothing. To reset it then:
+    docker compose -f ops/docker-compose.yml exec grafana grafana cli admin reset-admin-password NEWPASS
+
+    Step 4: Log in and test
+    Open http://192.168.1.44:3000 and log in as admin with the password from step 3.
+    Go to Connections → Data sources → Prometheus → Test. It should say "Successfully queried the Prometheus API."
+    Step 5: The two dashboards from the checklist
+    Go to Dashboards → New → Import, enter the ID, click Load, choose Prometheus, then Import.
+
+    Checklist	ID	Dashboard
+    VM dashboard	1860	Node Exporter Full: choose job=node and the host at the top
+    Containers dashboard	14282	Cadvisor exporter: your api / db / web containers
+    If 14282 shows "No data", tell me which panels are empty and we'll pick a different one or adjust it.
+
+    Step 6 (recommended): your own "Passbook overview"
+    Go to Dashboards → New dashboard → Add visualization → Prometheus, and add 4 panels:
+
+    Panel	Type	Query	Unit	Legend
+    Free disk	Gauge	100 * node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}	Percent (0-100)	{{host}}
+    RAM used	Time series	100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)	Percent (0-100)	{{host}}
+    CPU busy	Time series	100 * (1 - avg by (host) (rate(node_cpu_seconds_total{mode="idle"}[5m])))	Percent (0-100)	{{host}}
+    App containers RAM	Time series	container_memory_usage_bytes{name=~"deploy-.*"}	bytes (IEC)	{{host}} {{name}}
+    Save it as Passbook overview. Building it yourself teaches you more than importing does.
+
+    Step 7: Disk alert to Discord (m6)
+    Discord: create a second webhook in #alerts.
+    Grafana: Alerting → Contact points → + Add, name discord, type Discord, paste the URL → Test → Save.
+    Alerting → Alert rules → + New alert rule:
+    Query: the Free disk query from step 6
+    Condition IS BELOW 15
+    Folder Infra, group every-1m (1m), pending 5m
+    Contact point discord
+    Summary Disk almost full on {{ $labels.host }}
+    Test: temporarily set the condition to IS BELOW 99. After about 6 min a Discord message should arrive. Set it back to 15.
+    Step 8: Kuma watches Grafana
+    Add a monitor in Kuma: HTTP(s) - Keyword, URL http://grafana:3000/api/health, keyword ok.
+
+    Done when:
+
+    The data source test is green.
+    Dashboards 1860 and 14282 show test and prod.
+    The test alert arrived in Discord.
+    Kuma's grafana monitor is green.
+    Start with steps 1–2, and say "check" when the files are written.

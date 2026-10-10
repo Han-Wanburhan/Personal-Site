@@ -24,9 +24,26 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus:/prometheus
+  grafana:
+    image: grafana/grafana:13.2.3
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    env_file: .env # ops/.env: the admin password (NOT in git)
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_USERS_ALLOW_SIGN_UP: "false" # nobody can create their own account
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_SERVER_ROOT_URL: http://192.168.1.44:3000
+    ports:
+      - "3000:3000" # http://192.168.1.44:3000
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana:/var/lib/grafana # dashboards, users, alert rules survive restarts
 
 volumes:
   uptime-kuma:
   prometheus:
+  grafana:
 
     # the saved numbers survive restarts
