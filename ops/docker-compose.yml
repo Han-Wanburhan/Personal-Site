@@ -11,5 +11,22 @@ services:
     volumes:
       - uptime-kuma:/app/data # monitors, history and your login survive updates
 
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d # keep 15 days of history
+      - --storage.tsdb.retention.size=2GB # ...or less, if it ever reaches 2 GB
+    ports:
+      - "9090:9090" # web UI: http://192.168.1.44:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+
 volumes:
   uptime-kuma:
+  prometheus:
+
+    # the saved numbers survive restarts

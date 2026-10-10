@@ -1,0 +1,26 @@
+# Prometheus on passbook-ops: what to collect, and how often.
+global:
+  scrape_interval: 15s # visit every target every 15 s
+
+scrape_configs:
+  # Prometheus checks itself
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # The VMs: CPU, RAM, disk, network
+  - job_name: node
+    static_configs:
+      - targets: ["192.168.1.43:9100"]
+        labels: { env: test, host: passbook-test }
+      - targets: ["192.168.1.42:9100"]
+        labels: { env: prod, host: passbook-prod }
+
+  # The containers: api, db, web, ...
+  - job_name: cadvisor
+    scrape_interval: 30s # cAdvisor only refreshes every 30 s (--housekeeping_interval), no point asking more often
+    static_configs:
+      - targets: ["192.168.1.43:8081"]
+        labels: { env: test, host: passbook-test }
+      - targets: ["192.168.1.42:8081"]
+        labels: { env: prod, host: passbook-prod }

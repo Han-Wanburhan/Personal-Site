@@ -617,52 +617,156 @@ Priority 4 · Monitoring (on passbook-ops)
     curl from the PC times out.
     Paste your output if anything fails, for example from docker compose ... ps or sudo ufw status numbered. Next is Lesson 4: Prometheus on ops, which collects all of this.
 
-    If Error 
-    
-    I found the cause and the fix.
+    If Error
+    Fix (2 lines)
 
-    Why cAdvisor can't see your containers
-    dockerVersion="" plus no container names means cAdvisor v0.49.1 can't talk to Docker.
-    v0.49.1 is from 2024. Your VMs run a Docker Engine installed recently from docker.com, and newer Docker versions refuse the old API version that this cAdvisor speaks. So cAdvisor quietly falls back to reporting only the VM.
-    cAdvisor has also moved to a new registry:
-    Registry	Newest tag there
-    gcr.io/cadvisor/cadvisor (old)	v0.55.1, no longer updated
-    ghcr.io/google/cadvisor (new)	v0.60.6 (Sep 2026) ✅
-    Fix (you do it)
-    1. On your PC, change one line in deploy/docker-compose.monitoring.yml:
+    node-exporter:
+        image: quay.io/prometheus/node-exporter:v1.8.2    # line 9: back to node_exporter
 
+    cadvisor:
+        image: ghcr.io/google/cadvisor:v0.60.6            # line 19: the new cAdvisor
+    Then do the same as before:
 
-        image: ghcr.io/google/cadvisor:v0.60.6
-    Keep everything else (flags, volumes, --port=8081) as it is. Commit and push to main.
+    Commit and push to main. Jenkins deploys to test; you approve prod.
+    On passbook-test and passbook-prod:
 
-    2. Let Jenkins deploy it. Test updates automatically; prod updates after you approve.
+    cd ~/Personal-Site && git log --oneline -1
+    docker compose -f deploy/docker-compose.monitoring.yml up -d
+    docker compose -f deploy/docker-compose.monitoring.yml ps    # both "Up", none "Restarting"
+    From passbook-ops, check all three things:
 
-    3. On passbook-test, then passbook-prod:
-
-
-    cd ~/Personal-Site
-    git log --oneline -1                                          # your new commit
-    docker compose -f deploy/docker-compose.monitoring.yml up -d  # pulls v0.60.6 and replaces only cadvisor
-    docker compose -f deploy/docker-compose.monitoring.yml ps
-    4. Check from passbook-ops:
-
-
-    curl -s 192.168.1.43:8081/metrics | grep cadvisor_version_info | grep -o 'dockerVersion="[^"]*"'
+    curl -s -m 5 192.168.1.43:9100/metrics | head -2                                         # node_exporter back
+    curl -s 192.168.1.43:8081/metrics | grep -o 'cadvisorVersion="[^"]*"' | head -1           # v0.60.6
     curl -s 192.168.1.43:8081/metrics | grep container_memory_usage_bytes | grep -o 'name="[^"]*"' | sort -u
-    The first line should show a real version, e.g. dockerVersion="29.x.x".
-    The second should list deploy-api-1, deploy-db-1, deploy-web-1, plus monitoring-cadvisor-1 and monitoring-node-exporter-1.
-    Repeat the check for .42 after prod is updated.
+    Then repeat for .42.
+    The cadvisorVersion check is new. It proves which version is really running, so we'd catch a mix-up like this right away next time.
 
-    If it's still empty after the upgrade, run these on that server and paste the output:
+    Check Disk and Ram
 
-
-    docker version --format '{{.Server.Version}} (API {{.Server.APIVersion}}, min {{.Server.MinAPIVersion}})'
-    docker logs monitoring-cadvisor-1 2>&1 | tail -20
-    Results so far:
-
-    node_exporter works on both servers ✅
-    the firewall blocks your PC ✅
-    cAdvisor serves metrics from both servers ✅ (but it doesn't see containers yet)
-    When the container names show up, Lesson 3 is done.
+    curl -s 192.168.1.42:9100/metrics \
+    | grep -E '^node_filesystem_(avail|size)_bytes\{.*mountpoint="/"' \
+    | awk '{printf "%-30s %.1f GB\n", substr($1,1,index($1,"{")-1), $2/1e9}'
 
 
+
+    Lesson 4: Prometheus on passbook-ops
+    So far each exporter only shows the numbers right now. Prometheus visits all four exporters every 15 s, saves the numbers with timestamps, and lets you ask questions like "how much free disk did prod have yesterday?". In Lesson 5, Grafana draws graphs from it.
+
+
+    passbook-test ─ node_exporter :9100 ─┐
+                └ cAdvisor     :8081 ─┤        passbook-ops
+    passbook-prod ─ node_exporter :9100 ─┼──►  Prometheus :9090  ──►  Grafana (Lesson 5)
+                └ cAdvisor     :8081 ─┘   (pulls every 15 s, keeps 15 days)
+    4.1 The config file: ops/prometheus/prometheus.yml (new file, PC)
+
+    # Prometheus on passbook-ops: what to collect, and how often.
+    global:
+    scrape_interval: 15s        # visit every target every 15 s
+
+    scrape_configs:
+    # Prometheus checks itself
+    - job_name: prometheus
+        static_configs:
+        - targets: ["localhost:9090"]
+
+    # The VMs: CPU, RAM, disk, network
+    - job_name: node
+        static_configs:
+        - targets: ["192.168.1.43:9100"]
+            labels: { env: test, host: passbook-test }
+        - targets: ["192.168.1.42:9100"]
+            labels: { env: prod, host: passbook-prod }
+
+    # The containers: api, db, web, ...
+    - job_name: cadvisor
+        scrape_interval: 30s      # cAdvisor only refreshes every 30 s (--housekeeping_interval), no point asking more often
+        static_configs:
+        - targets: ["192.168.1.43:8081"]
+            labels: { env: test, host: passbook-test }
+        - targets: ["192.168.1.42:8081"]
+            labels: { env: prod, host: passbook-prod }
+    A job is a group of targets of the same kind.
+    Labels (env, host) get attached to every number from that target. Later you can write "prod only" as {env="prod"} instead of remembering IPs.
+    4.2 Add Prometheus to ops/docker-compose.yml (PC)
+    Add the new service under services: next to uptime-kuma, and the new volume at the bottom:
+
+
+    prometheus:
+        image: prom/prometheus:v3.15.0
+        restart: unless-stopped
+        command:
+        - --config.file=/etc/prometheus/prometheus.yml
+        - --storage.tsdb.path=/prometheus
+        - --storage.tsdb.retention.time=15d    # keep 15 days of history
+        - --storage.tsdb.retention.size=2GB    # ...or less, if it ever reaches 2 GB
+        ports:
+        - "9090:9090"                          # web UI: http://192.168.1.44:9090
+        volumes:
+        - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        - prometheus:/prometheus               # the saved numbers survive restarts
+
+    volumes:
+    uptime-kuma:
+    prometheus:
+    ./prometheus/prometheus.yml is relative to the compose file, so it means ops/prometheus/prometheus.yml.
+    Prometheus has no login. Anyone who can reach :9090 can read all your numbers. That's fine on your home network, but never publish 9090 on a server with a public IP.
+    Guides often add --web.enable-lifecycle. I left it out on purpose: it lets anyone on the network shut Prometheus down with one HTTP request. You'll reload the config another way (4.6).
+    Commit and push both files.
+
+    4.3 Check the config before starting (on passbook-ops)
+
+    cd ~/Personal-Site && git pull
+    docker run --rm -v "$PWD/ops/prometheus:/cfg:ro" --entrypoint promtool \
+    prom/prometheus:v3.15.0 check config /cfg/prometheus.yml
+    It should say SUCCESS: /cfg/prometheus.yml is valid prometheus config file syntax. promtool catches YAML mistakes (a wrong indent, a missing -) before they crash the container.
+
+    4.4 Start it
+
+    docker compose -f ops/docker-compose.yml up -d
+    docker compose -f ops/docker-compose.yml ps        # prometheus + uptime-kuma "Up"
+    Only Prometheus is new. Uptime Kuma keeps running untouched.
+
+    4.5 Are all targets UP?
+    Open http://192.168.1.44:9090/targets on your PC. You should see 5 targets, all UP:
+
+    Job	Targets
+    prometheus	localhost:9090
+    node	.43:9100 (test), .42:9100 (prod)
+    cadvisor	.43:8081 (test), .42:8081 (prod)
+    Or from the terminal:
+
+
+    curl -s localhost:9090/api/v1/targets | grep -o '"health":"[a-z]*"' | sort | uniq -c
+    #       5 "health":"up"
+    If one is DOWN, its error text says why. Most likely it's the ufw rule on that server.
+
+    4.6 Your first queries
+    On http://192.168.1.44:9090, open the Query tab and try these. Switch to the Graph tab to see a line over time.
+
+    Question	Query
+    Is everything alive? (1 = yes)	up
+    Free disk on /, in %	100 * node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}
+    RAM in use, %	100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+    CPU busy, % (avg over 5 min)	100 * (1 - avg by (host) (rate(node_cpu_seconds_total{mode="idle"}[5m])))
+    RAM per app container, MB	container_memory_usage_bytes{name=~"deploy-.*"} / 1e6
+    Only prod's containers	container_memory_usage_bytes{env="prod", name=~"deploy-.*"} / 1e6
+    node_cpu_seconds_total is a counter: it only ever goes up (total seconds of CPU since boot). rate(...[5m]) turns it into "seconds per second over the last 5 minutes", which is the CPU usage. Use rate() on any metric ending in _total.
+
+    Changed the config later? Reload without losing data:
+
+
+    docker compose -f ops/docker-compose.yml kill -s HUP prometheus
+    HUP is the classic "re-read your config" signal; it's safer than the open HTTP endpoint.
+
+    4.7 Let Kuma watch Prometheus too
+    Kuma and Prometheus are in the same compose project, so they share the network ops_default and can find each other by service name. No IP and no ufw rule needed.
+
+    Name	Type	URL
+    prometheus	HTTP(s)	http://prometheus:9090/-/healthy
+    Done when:
+
+    promtool says SUCCESS.
+    /targets shows 5× UP.
+    The free-disk and RAM queries show numbers for test and prod.
+    Kuma's "prometheus" monitor is green.
+    Paste me the targets page result or the query output if you want me to check. Then Lesson 5: Grafana, with real dashboards for your VMs and containers.
