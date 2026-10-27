@@ -115,7 +115,8 @@ func Import(ctx context.Context, db *gorm.DB, userID uint, s *Sheet, days Days, 
 				if amount.IsZero() {
 					continue
 				}
-				t := model.Transaction{ItemID: item.ID, Amount: amount, TxnDate: Date(rg.Year, m, days[r.Item]), Note: &note}
+				// imported months are real history, so they count as paid
+				t := model.Transaction{ItemID: item.ID, Amount: amount, TxnDate: Date(rg.Year, m, days[r.Item]), Note: &note, IsPaid: true}
 				if err := tx.Create(&t).Error; err != nil {
 					return fmt.Errorf("row %d month %d: %w", r.Line, m, err)
 				}

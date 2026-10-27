@@ -6,7 +6,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { api } from '../../lib/api'
 import { summaryKey } from './summary'
 
-export type TxnType = 'income' | 'expense'
+export type TxnType = 'income' | 'expense' | 'saving' | 'investment'
 
 export interface Category {
   id: number
@@ -31,9 +31,10 @@ export interface Transaction {
   category_id: number
   category_name: string
   type: TxnType
-  amount: string // "1284.50" (a string: exact, no float rounding)
+  amount: string // "1284.50" (a string: exact, no float rounding); "-500.00" = a savings withdrawal
   txn_date: string // "2026-09-28"
   note: string
+  is_paid: boolean // ticked once the money has really been paid / received
 }
 
 export interface TransactionInput {
@@ -41,6 +42,7 @@ export interface TransactionInput {
   amount: string
   txn_date: string
   note: string
+  is_paid?: boolean // create: defaults to false; update: left as it is when missing
 }
 
 const keys = {
@@ -127,6 +129,23 @@ export function useUpdateTransaction() {
     mutationFn: ({ id, ...body }: TransactionInput & { id: number }) =>
       api<Transaction>(`/transactions/${id}`, json('PUT', body)),
     onSuccess: () => refreshMoney(qc),
+  })
+}
+
+// Ticks / unticks one transaction. The list updates at once (optimistic) and is
+// re-fetched afterwards; totals don't change, they count paid and unpaid alike.
+export function useSetPaid() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isPaid }: { id: number; isPaid: boolean }) =>
+      api<Transaction>(`/transactions/${id}`, json('PUT', { is_paid: isPaid })),
+    onMutate: async ({ id, isPaid }) => {
+      await qc.cancelQueries({ queryKey: keys.transactions })
+      qc.setQueriesData<Transaction[]>({ queryKey: keys.transactions }, (list) =>
+        list?.map((t) => (t.id === id ? { ...t, is_paid: isPaid } : t)),
+      )
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.transactions }), // on error this puts the real value back
   })
 }
 

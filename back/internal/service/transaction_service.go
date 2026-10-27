@@ -45,9 +45,16 @@ func ParseDate(s string) (time.Time, error) {
 	return time.ParseInLocation(dto.DateLayout, s, bangkok)
 }
 
-// validAmount: positive, at most 2 decimals, fits DECIMAL(12,2).
-func validAmount(a decimal.Decimal) bool {
-	return a.IsPositive() && a.Equal(a.Round(2)) && a.LessThanOrEqual(maxAmount)
+// checkAmount: not zero, at most 2 decimals, fits DECIMAL(12,2).
+// Negative (a withdrawal) only for savings and investments.
+func checkAmount(a decimal.Decimal, catType string) error {
+	if a.IsZero() || !a.Equal(a.Round(2)) || a.Abs().GreaterThan(maxAmount) {
+		return ErrInvalidAmount
+	}
+	if a.IsNegative() && !model.AllowsWithdrawal(catType) {
+		return ErrNegativeAmount
+	}
+	return nil
 }
 
 // noteOrNil trims the note and stores NULL instead of an empty string.
@@ -60,12 +67,13 @@ func noteOrNil(s string) *string {
 }
 
 // ownItem makes sure the item exists and belongs to the user (through its category).
-func (s *transactionService) ownItem(ctx context.Context, userID, itemID uint) error {
-	_, err := s.items.FindByIDForUser(ctx, itemID, userID)
+// The returned view carries the category type, which decides if the amount may be negative.
+func (s *transactionService) ownItem(ctx context.Context, userID, itemID uint) (*repository.ItemView, error) {
+	item, err := s.items.FindByIDForUser(ctx, itemID, userID)
 	if errors.Is(err, repository.ErrNotFound) {
-		return ErrItemNotFound
+		return nil, ErrItemNotFound
 	}
-	return err
+	return item, err
 }
 
 func (s *transactionService) List(ctx context.Context, userID uint, from, to *time.Time) ([]repository.TransactionView, error) {
@@ -73,11 +81,12 @@ func (s *transactionService) List(ctx context.Context, userID uint, from, to *ti
 }
 
 func (s *transactionService) Create(ctx context.Context, userID uint, req dto.CreateTransactionRequest) (*repository.TransactionView, error) {
-	if err := s.ownItem(ctx, userID, req.ItemID); err != nil {
+	item, err := s.ownItem(ctx, userID, req.ItemID)
+	if err != nil {
 		return nil, err
 	}
-	if !validAmount(req.Amount) {
-		return nil, ErrInvalidAmount
+	if err := checkAmount(req.Amount, item.CategoryType); err != nil {
+		return nil, err
 	}
 	date, err := ParseDate(req.TxnDate) // format already checked by the validator
 	if err != nil {
@@ -89,6 +98,7 @@ func (s *transactionService) Create(ctx context.Context, userID uint, req dto.Cr
 		Amount:  req.Amount,
 		TxnDate: date,
 		Note:    noteOrNil(req.Note),
+		IsPaid:  req.IsPaid,
 	}
 	if err := s.txns.Create(ctx, t); err != nil {
 		return nil, err
@@ -111,17 +121,21 @@ func (s *transactionService) Update(ctx context.Context, userID, id uint, req dt
 	}
 
 	t := view.Transaction // plain row, without the joined columns
+	catType := view.CategoryType
 	if req.ItemID != nil {
-		if err := s.ownItem(ctx, userID, *req.ItemID); err != nil {
+		item, err := s.ownItem(ctx, userID, *req.ItemID)
+		if err != nil {
 			return nil, err
 		}
 		t.ItemID = *req.ItemID
+		catType = item.CategoryType
 	}
 	if req.Amount != nil {
-		if !validAmount(*req.Amount) {
-			return nil, ErrInvalidAmount
-		}
 		t.Amount = *req.Amount
+	}
+	// Checked on every update: moving a withdrawal (negative) to an expense item must fail too.
+	if err := checkAmount(t.Amount, catType); err != nil {
+		return nil, err
 	}
 	if req.TxnDate != nil {
 		date, err := ParseDate(*req.TxnDate)
@@ -132,6 +146,9 @@ func (s *transactionService) Update(ctx context.Context, userID, id uint, req dt
 	}
 	if req.Note != nil {
 		t.Note = noteOrNil(*req.Note)
+	}
+	if req.IsPaid != nil {
+		t.IsPaid = *req.IsPaid
 	}
 
 	if err := s.txns.Update(ctx, &t); err != nil {

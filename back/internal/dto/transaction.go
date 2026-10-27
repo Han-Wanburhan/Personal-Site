@@ -12,14 +12,16 @@ import (
 const DateLayout = "2006-01-02"
 
 // ---------- Requests (JSON in) ----------
-// amount may be a JSON number (125.5) or a string ("125.50"). Always positive:
-// whether money comes in or goes out depends on the item's category type.
+// amount may be a JSON number (125.5) or a string ("125.50"). Positive, except for
+// savings and investments, where a negative amount is a withdrawal / a sale.
+// Whether money comes in or goes out depends on the item's category type.
 
 type CreateTransactionRequest struct {
 	ItemID  uint            `json:"item_id" validate:"required"`
 	Amount  decimal.Decimal `json:"amount"`
 	TxnDate string          `json:"txn_date" validate:"required,datetime=2006-01-02"`
 	Note    string          `json:"note" validate:"max=255"`
+	IsPaid  bool            `json:"is_paid"` // default false: tick it once paid
 }
 
 // Pointers = optional. Send "note": "" to clear the note.
@@ -28,6 +30,7 @@ type UpdateTransactionRequest struct {
 	Amount  *decimal.Decimal `json:"amount"`
 	TxnDate *string          `json:"txn_date" validate:"omitempty,datetime=2006-01-02"`
 	Note    *string          `json:"note" validate:"omitempty,max=255"`
+	IsPaid  *bool            `json:"is_paid"` // send only this to tick / untick
 }
 
 // ---------- Responses (JSON out) ----------
@@ -38,10 +41,11 @@ type TransactionResponse struct {
 	ItemName     string    `json:"item_name"`
 	CategoryID   uint      `json:"category_id"`
 	CategoryName string    `json:"category_name"`
-	Type         string    `json:"type"`   // income | expense
+	Type         string    `json:"type"`   // income | expense | saving | investment
 	Amount       string    `json:"amount"` // "1284.50": a string, so no float rounding in JSON
 	TxnDate      string    `json:"txn_date"`
 	Note         string    `json:"note"`
+	IsPaid       bool      `json:"is_paid"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -61,6 +65,7 @@ func NewTransactionResponse(v *repository.TransactionView) TransactionResponse {
 		Amount:       v.Amount.StringFixed(2),
 		TxnDate:      v.TxnDate.Format(DateLayout),
 		Note:         note,
+		IsPaid:       v.IsPaid,
 		CreatedAt:    v.CreatedAt,
 		UpdatedAt:    v.UpdatedAt,
 	}

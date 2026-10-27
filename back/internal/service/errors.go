@@ -19,5 +19,6 @@ var (
 	ErrItemNameTaken = errors.New("item name already taken in this category")
 
 	ErrTransactionNotFound = errors.New("transaction not found")
-	ErrInvalidAmount       = errors.New("amount must be greater than 0 with at most 2 decimals")
+	ErrInvalidAmount       = errors.New("amount must not be 0 and may have at most 2 decimals")
+	ErrNegativeAmount      = errors.New("only savings and investments can be negative (a withdrawal)")
 )

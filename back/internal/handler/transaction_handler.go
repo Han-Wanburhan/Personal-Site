@@ -134,8 +134,8 @@ func mapTransactionError(err error) error {
 		return fiber.NewError(fiber.StatusNotFound, "transaction not found")
 	case errors.Is(err, service.ErrItemNotFound):
 		return fiber.NewError(fiber.StatusNotFound, "item not found")
-	case errors.Is(err, service.ErrInvalidAmount):
-		return fiber.NewError(fiber.StatusBadRequest, "amount must be greater than 0 with at most 2 decimals")
+	case errors.Is(err, service.ErrInvalidAmount), errors.Is(err, service.ErrNegativeAmount):
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	default:
 		return err // unexpected → 500 by ErrorHandler
 	}

@@ -21,7 +21,7 @@ func NewCategoryHandler(categories service.CategoryService, validate *validator.
 	return &CategoryHandler{categories: categories, validate: validate}
 }
 
-// List handles GET /api/categories?type=income|expense
+// List handles GET /api/categories?type=income|expense|saving|investment
 func (h *CategoryHandler) List(c *fiber.Ctx) error {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
@@ -29,8 +29,8 @@ func (h *CategoryHandler) List(c *fiber.Ctx) error {
 	}
 
 	catType := c.Query("type")
-	if catType != "" && catType != model.CategoryIncome && catType != model.CategoryExpense {
-		return fiber.NewError(fiber.StatusBadRequest, "type must be income or expense")
+	if catType != "" && !model.IsCategoryType(catType) {
+		return fiber.NewError(fiber.StatusBadRequest, "type must be income, expense, saving or investment")
 	}
 
 	list, err := h.categories.List(c.UserContext(), user.ID, catType)

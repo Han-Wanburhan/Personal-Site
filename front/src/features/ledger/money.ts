@@ -12,6 +12,11 @@ export function toSatang(amount: string): number {
   return Number(baht) * 100 + Number((frac + '00').slice(0, 2))
 }
 
+// "-500.50" → -50050 (savings withdrawals and summary totals can be negative)
+export function toSignedSatang(amount: string): number {
+  return amount.startsWith('-') ? -toSatang(amount.slice(1)) : toSatang(amount)
+}
+
 // 128450 → "1,284.50"
 export function formatSatang(satang: number): string {
   return formatMoney(satang / 100)

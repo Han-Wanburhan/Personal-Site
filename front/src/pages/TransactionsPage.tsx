@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { AddFab } from '../components/AddFab'
 import { AppHeader } from '../components/AppHeader'
 import { useItems, useTransactions, type Transaction } from '../features/ledger/api'
-import { formatSatang, toSatang } from '../features/ledger/money'
+import { formatSatang, toSignedSatang } from '../features/ledger/money'
 import { NewTransactionForm } from '../features/ledger/NewTransactionForm'
 import { TransactionRow } from '../features/ledger/TransactionRow'
 import { MONTHS, todayISO } from '../lib/format'
@@ -44,6 +44,7 @@ export function TransactionsPage() {
   const [month, setMonth] = useState(thisMonth)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [onlyUnpaid, setOnlyUnpaid] = useState(false)
 
   const { from, to } = monthRange(month)
   const txnsQ = useTransactions(from, to)
@@ -56,13 +57,24 @@ export function TransactionsPage() {
   }, [toast])
 
   const list = txnsQ.data ?? []
-  let income = 0
-  let expense = 0
-  for (const t of list) {
-    if (t.type === 'income') income += toSatang(t.amount)
-    else expense += toSatang(t.amount)
+  // Month totals in satang. Savings / investments are net (withdrawals are negative).
+  const totals = { income: 0, expense: 0, saving: 0, investment: 0 }
+  for (const t of list) totals[t.type] += toSignedSatang(t.amount)
+  const put = totals.saving + totals.investment
+  const leftOver = totals.income - totals.expense - put
+
+  // Not ticked yet: money still to go out (expenses, deposits, buys) or still to come in.
+  const unpaid = list.filter((t) => !t.is_paid)
+  let toPay = 0
+  let toReceive = 0
+  for (const t of unpaid) {
+    const v = toSignedSatang(t.amount)
+    if (t.type === 'income') toReceive += v
+    else if (t.type === 'expense' || v > 0) toPay += v
+    else toReceive -= v // a planned withdrawal / sale: money coming back
   }
-  const net = income - expense
+  const shown = onlyUnpaid ? unpaid : list
+  const signed = (satang: number) => (satang < 0 ? '−' : '') + formatSatang(Math.abs(satang))
 
   const goTo = (ym: string) => {
     setEditingId(null)
@@ -91,31 +103,42 @@ export function TransactionsPage() {
         </div>
       </div>
 
-      <div className="figures figures-3">
+      <div className="figures compact">
         <div className="fig">
           <div className="eyebrow">Income</div>
-          <div className="fig-value up"><small>฿</small>{formatSatang(income)}</div>
+          <div className="fig-value up"><small>฿</small>{formatSatang(totals.income)}</div>
         </div>
         <div className="fig">
           <div className="eyebrow">Expenses</div>
-          <div className="fig-value down"><small>฿</small>{formatSatang(expense)}</div>
+          <div className="fig-value down"><small>฿</small>{formatSatang(totals.expense)}</div>
         </div>
         <div className="fig">
-          <div className="eyebrow">Net</div>
-          <div className={`fig-value ${net >= 0 ? 'up' : 'down'}`}>
-            <small>฿</small>
-            {net < 0 ? '−' : ''}
-            {formatSatang(Math.abs(net))}
-          </div>
+          <div className="eyebrow">Saved &amp; invested</div>
+          <div className={`fig-value ${put >= 0 ? 'sv' : 'down'}`}><small>฿</small>{signed(put)}</div>
+        </div>
+        <div className="fig">
+          <div className="eyebrow">Left over</div>
+          <div className={`fig-value ${leftOver >= 0 ? 'up' : 'down'}`}><small>฿</small>{signed(leftOver)}</div>
         </div>
       </div>
 
       <div className="grid">
         <section className="panel" aria-busy={txnsQ.isFetching}>
           <div className="panel-head">
-            <h2>{list.length} {list.length === 1 ? 'transaction' : 'transactions'}</h2>
-            {txnsQ.isFetching && <span className="field-hint">Loading…</span>}
+            <h2>{shown.length} {shown.length === 1 ? 'transaction' : 'transactions'}</h2>
+            <div className="seg paid-filter" role="group" aria-label="Show">
+              <button type="button" aria-pressed={!onlyUnpaid} onClick={() => setOnlyUnpaid(false)}>All</button>
+              <button type="button" aria-pressed={onlyUnpaid} onClick={() => setOnlyUnpaid(true)}>
+                Not paid{unpaid.length > 0 ? ` (${unpaid.length})` : ''}
+              </button>
+            </div>
           </div>
+          {unpaid.length > 0 && (
+            <p className="to-pay">
+              Still to pay <b>฿{formatSatang(toPay)}</b>
+              {toReceive > 0 && <> · to receive <b>฿{formatSatang(toReceive)}</b></>}
+            </p>
+          )}
 
           {txnsQ.isError ? (
             <div className="empty-state">
@@ -128,8 +151,10 @@ export function TransactionsPage() {
             <div className="empty-state">Loading…</div>
           ) : list.length === 0 ? (
             <div className="empty-state">No transactions in {monthLabel(month)} yet. Add one with the form.</div>
+          ) : shown.length === 0 ? (
+            <div className="empty-state">Everything in {monthLabel(month)} is ticked. Nothing left to pay.</div>
           ) : (
-            byDay(list).map((g) => (
+            byDay(shown).map((g) => (
               <div key={g.date} className="day">
                 <div className="day-head">
                   <span>{dayLabel.format(new Date(`${g.date}T00:00:00`))}</span>

@@ -12,6 +12,7 @@ type Transaction struct {
 	Amount    decimal.Decimal `gorm:"type:decimal(12,2)"` // money: exact decimals, never float
 	TxnDate   time.Time       `gorm:"type:date"`
 	Note      *string         // NULL when there is no note
+	IsPaid    bool            // ticked when the money has really been paid / received
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

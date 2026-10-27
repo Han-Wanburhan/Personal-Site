@@ -60,7 +60,9 @@ func monthResponse(m service.MonthSummary) dto.MonthSummaryResponse {
 		Month:            m.Month,
 		Income:           m.Income.StringFixed(2),
 		Expense:          m.Expense.StringFixed(2),
-		Saved:            m.Saved.StringFixed(2),
+		Saving:           m.Saving.StringFixed(2),
+		Investment:       m.Investment.StringFixed(2),
+		LeftOver:         m.LeftOver.StringFixed(2),
 		SavingsRate:      rate,
 		TransactionCount: m.Count,
 	}

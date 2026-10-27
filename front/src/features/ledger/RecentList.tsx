@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 
 import type { Transaction } from './api'
-import { formatSatang, toSatang } from './money'
+import { amountText, TYPE_CLASS } from './types'
 
 const dayMonth = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' })
 
@@ -26,10 +26,9 @@ export function RecentList({ txns, loading }: Props) {
       ) : (
         <ul className="txns">
           {txns.map((t) => {
-            const income = t.type === 'income'
             return (
               <li key={t.id} className="txn">
-                <span className={`txn-tag${income ? ' in' : ''}`} aria-hidden="true">
+                <span className={`txn-tag ${TYPE_CLASS[t.type]}`} aria-hidden="true">
                   {t.category_name.slice(0, 2)}
                 </span>
                 <div className="txn-main">
@@ -39,10 +38,7 @@ export function RecentList({ txns, loading }: Props) {
                     {t.note && ` · ${t.note}`}
                   </small>
                 </div>
-                <span className={`txn-amt ${income ? 'up' : 'down'}`}>
-                  {income ? '+' : '−'}
-                  {formatSatang(toSatang(t.amount))}
-                </span>
+                <span className={`txn-amt ${TYPE_CLASS[t.type]}`}>{amountText(t.type, t.amount)}</span>
               </li>
             )
           })}

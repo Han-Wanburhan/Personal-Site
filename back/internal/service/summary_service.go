@@ -15,12 +15,17 @@ var ErrInvalidYear = errors.New("year must be between 2000 and 2100")
 var hundred = decimal.NewFromInt(100)
 
 // MonthSummary holds the figures for one month (or the whole year in YearSummary.Total).
+//
+//	Income − Expense − Saving − Investment = LeftOver (cash not yet assigned)
+//	SavingsRate = (Saving + Investment) / Income
 type MonthSummary struct {
 	Month       int // 1-12, or 0 for the year total
 	Income      decimal.Decimal
 	Expense     decimal.Decimal
-	Saved       decimal.Decimal  // income - expense (negative if you spent more)
-	SavingsRate *decimal.Decimal // saved / income * 100, 1 decimal; nil when there is no income
+	Saving      decimal.Decimal  // net: deposits minus withdrawals, may be negative
+	Investment  decimal.Decimal  // net: bought minus sold, may be negative
+	LeftOver    decimal.Decimal  // negative when more went out than came in
+	SavingsRate *decimal.Decimal // (saving + investment) / income * 100, 1 decimal; nil when there is no income
 	Count       int
 }
 
@@ -71,6 +76,10 @@ func BuildYearSummary(year int, rows []repository.MonthTypeTotal) *YearSummary {
 			m.Income = m.Income.Add(r.Total)
 		case model.CategoryExpense:
 			m.Expense = m.Expense.Add(r.Total)
+		case model.CategorySaving:
+			m.Saving = m.Saving.Add(r.Total)
+		case model.CategoryInvestment:
+			m.Investment = m.Investment.Add(r.Total)
 		default:
 			continue
 		}
@@ -82,18 +91,21 @@ func BuildYearSummary(year int, rows []repository.MonthTypeTotal) *YearSummary {
 		finish(m)
 		ys.Total.Income = ys.Total.Income.Add(m.Income)
 		ys.Total.Expense = ys.Total.Expense.Add(m.Expense)
+		ys.Total.Saving = ys.Total.Saving.Add(m.Saving)
+		ys.Total.Investment = ys.Total.Investment.Add(m.Investment)
 		ys.Total.Count += m.Count
 	}
 	finish(&ys.Total)
 	return ys
 }
 
-// finish fills Saved and SavingsRate from Income and Expense.
+// finish fills LeftOver and SavingsRate from the four totals.
 func finish(m *MonthSummary) {
-	m.Saved = m.Income.Sub(m.Expense)
+	put := m.Saving.Add(m.Investment)
+	m.LeftOver = m.Income.Sub(m.Expense).Sub(put)
 	m.SavingsRate = nil
 	if m.Income.IsPositive() {
-		rate := m.Saved.Div(m.Income).Mul(hundred).Round(1)
+		rate := put.Div(m.Income).Mul(hundred).Round(1)
 		m.SavingsRate = &rate
 	}
 }

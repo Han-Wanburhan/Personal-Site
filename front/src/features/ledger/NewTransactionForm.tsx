@@ -12,6 +12,7 @@ import {
   type TxnType,
 } from './api'
 import { cleanAmount, isValidAmount } from './money'
+import { amountText, canWithdraw, TXN_TYPES, TYPE_EXAMPLE, TYPE_LABEL } from './types'
 
 const NEW = '__new' // select value that opens the "new category / new item" input
 
@@ -27,12 +28,14 @@ export function NewTransactionForm({ onSaved }: Props) {
   const createTxn = useCreateTransaction()
 
   const [type, setType] = useState<TxnType>('expense')
+  const [withdraw, setWithdraw] = useState(false) // savings / investments only
   const [categoryPick, setCategoryPick] = useState('')
   const [itemPick, setItemPick] = useState('')
   const [newName, setNewName] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(todayISO)
   const [note, setNote] = useState('')
+  const [paid, setPaid] = useState(false) // new transactions start unpaid; tick when it's done
   const [error, setError] = useState<string | null>(null)
 
   // Only active categories/items of the chosen type appear in the pickers.
@@ -50,6 +53,7 @@ export function NewTransactionForm({ onSaved }: Props) {
 
   const chooseType = (t: TxnType) => {
     setType(t)
+    setWithdraw(false)
     setCategoryPick('')
     setItemPick('')
     setNewName('')
@@ -100,13 +104,15 @@ export function NewTransactionForm({ onSaved }: Props) {
     if (!date) return setError('Pick a date')
     setError(null)
 
+    const signed = canWithdraw(type) && withdraw ? `-${value}` : value
     createTxn.mutate(
-      { item_id: Number(itemId), amount: value, txn_date: date, note: note.trim() },
+      { item_id: Number(itemId), amount: signed, txn_date: date, note: note.trim(), is_paid: paid },
       {
         onSuccess: (t) => {
           setAmount('')
           setNote('')
-          onSaved(`Saved ${t.item_name} · ${t.amount}`, t.txn_date)
+          setPaid(false)
+          onSaved(`Saved ${t.item_name} · ${amountText(t.type, t.amount)}`, t.txn_date)
         },
         onError: (err) => setError(err instanceof ApiError ? err.message : "Couldn't save. Check that the API is running."),
       },
@@ -128,13 +134,24 @@ export function NewTransactionForm({ onSaved }: Props) {
           </div>
         )}
 
-        <div className="type-toggle" role="group" aria-label="Type">
-          {(['expense', 'income'] as const).map((t) => (
+        <div className="type-toggle type-toggle-4" role="group" aria-label="Type">
+          {TXN_TYPES.map((t) => (
             <button key={t} type="button" className={t} aria-pressed={type === t} onClick={() => chooseType(t)}>
-              {t === 'expense' ? 'Expense' : 'Income'}
+              {TYPE_LABEL[t]}
             </button>
           ))}
         </div>
+
+        {canWithdraw(type) && (
+          <div className="type-toggle dir-toggle" role="group" aria-label="Direction">
+            <button type="button" aria-pressed={!withdraw} onClick={() => setWithdraw(false)}>
+              {type === 'saving' ? 'Deposit' : 'Buy'}
+            </button>
+            <button type="button" aria-pressed={withdraw} onClick={() => setWithdraw(true)}>
+              {type === 'saving' ? 'Withdraw' : 'Sell'}
+            </button>
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor="new-category">Category</label>
@@ -161,7 +178,7 @@ export function NewTransactionForm({ onSaved }: Props) {
             <input
               id="new-category-name"
               className="input"
-              placeholder={type === 'expense' ? 'e.g. Food' : 'e.g. Salary'}
+              placeholder={TYPE_EXAMPLE[type].category}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCategory())}
@@ -198,7 +215,7 @@ export function NewTransactionForm({ onSaved }: Props) {
             <input
               id="new-item-name"
               className="input"
-              placeholder={type === 'expense' ? 'e.g. Coffee' : 'e.g. Monthly salary'}
+              placeholder={TYPE_EXAMPLE[type].item}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addItem())}
@@ -210,7 +227,9 @@ export function NewTransactionForm({ onSaved }: Props) {
         )}
 
         <div className="field">
-          <label htmlFor="new-amount">Amount</label>
+          <label htmlFor="new-amount">
+            Amount{canWithdraw(type) && withdraw ? (type === 'saving' ? ' taken out' : ' sold') : ''}
+          </label>
           <div className="amount">
             <span aria-hidden="true">฿</span>
             <input
@@ -234,6 +253,11 @@ export function NewTransactionForm({ onSaved }: Props) {
             <input id="new-note" className="input" placeholder="Optional" maxLength={255} value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
+
+        <label className="check" htmlFor="new-paid">
+          <input id="new-paid" type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
+          Already {type === 'income' ? 'received' : 'paid'}
+        </label>
 
         <button className="btn" type="submit" disabled={createTxn.isPending}>
           {createTxn.isPending ? 'Saving…' : 'Save transaction'}

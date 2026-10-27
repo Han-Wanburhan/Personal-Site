@@ -10,7 +10,7 @@ import (
 
 type CreateCategoryRequest struct {
 	Name string `json:"name" validate:"required,max=100"`
-	Type string `json:"type" validate:"required,oneof=income expense"`
+	Type string `json:"type" validate:"required,oneof=income expense saving investment"`
 }
 
 type UpdateCategoryRequest struct {

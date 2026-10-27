@@ -59,9 +59,14 @@ func TestYearSummary_TotalsAndRates(t *testing.T) {
 	repo := &fakeSummaryRepo{rows: []repository.MonthTypeTotal{
 		row(1, "income", "45000.00", 1),
 		row(1, "expense", "31200.00", 40),
-		row(3, "expense", "500.50", 2), // a month with spending but no income
+		row(1, "saving", "5000.00", 1),
+		row(1, "investment", "3000.00", 1),
+		row(3, "expense", "500.50", 2),  // a month with spending but no income...
+		row(3, "saving", "-2000.00", 1), // ...paid from savings (a withdrawal)
 		row(9, "income", "51200.00", 2),
 		row(9, "expense", "30950.25", 55),
+		row(9, "saving", "10000.00", 2),
+		row(9, "investment", "-1500.50", 1), // sold more than bought
 	}}
 	ys, err := NewSummaryService(repo).Year(context.Background(), 7, 2026)
 	if err != nil {
@@ -83,34 +88,52 @@ func TestYearSummary_TotalsAndRates(t *testing.T) {
 	jan := ys.Months[0]
 	assertDec(t, "Jan income", jan.Income, "45000")
 	assertDec(t, "Jan expense", jan.Expense, "31200")
-	assertDec(t, "Jan saved", jan.Saved, "13800")
-	assertRate(t, "Jan rate", jan.SavingsRate, "30.7") // 13800 / 45000 = 30.666… → 30.7
-	if jan.Count != 41 {
-		t.Errorf("Jan count = %d, want 41", jan.Count)
+	assertDec(t, "Jan saving", jan.Saving, "5000")
+	assertDec(t, "Jan investment", jan.Investment, "3000")
+	assertDec(t, "Jan left over", jan.LeftOver, "5800") // 45000 - 31200 - 5000 - 3000
+	assertRate(t, "Jan rate", jan.SavingsRate, "17.8")  // 8000 / 45000 = 17.77… → 17.8
+	if jan.Count != 43 {
+		t.Errorf("Jan count = %d, want 43", jan.Count)
 	}
 
 	mar := ys.Months[2]
-	assertDec(t, "Mar saved", mar.Saved, "-500.50") // spent more than earned
-	assertRate(t, "Mar rate", mar.SavingsRate, "")  // no income → no rate
+	assertDec(t, "Mar saving", mar.Saving, "-2000")        // net withdrawal
+	assertDec(t, "Mar left over", mar.LeftOver, "1499.50") // 0 - 500.50 - (-2000)
+	assertRate(t, "Mar rate", mar.SavingsRate, "")         // no income → no rate
 
 	feb := ys.Months[1]
 	assertDec(t, "Feb income", feb.Income, "0")
+	assertDec(t, "Feb left over", feb.LeftOver, "0")
 	assertRate(t, "Feb rate", feb.SavingsRate, "")
 	if feb.Count != 0 {
 		t.Errorf("Feb count = %d, want 0", feb.Count)
 	}
 
 	sep := ys.Months[8]
-	assertDec(t, "Sep saved", sep.Saved, "20249.75") // exact decimals, no float drift
-	assertRate(t, "Sep rate", sep.SavingsRate, "39.6") // 20249.75 / 51200 = 39.550… → 39.6
+	assertDec(t, "Sep investment", sep.Investment, "-1500.50")
+	assertDec(t, "Sep left over", sep.LeftOver, "11750.25") // exact decimals, no float drift
+	assertRate(t, "Sep rate", sep.SavingsRate, "16.6")      // 8499.50 / 51200 = 16.60… → 16.6
 
 	assertDec(t, "Total income", ys.Total.Income, "96200")
 	assertDec(t, "Total expense", ys.Total.Expense, "62650.75")
-	assertDec(t, "Total saved", ys.Total.Saved, "33549.25")
-	assertRate(t, "Total rate", ys.Total.SavingsRate, "34.9") // 33549.25 / 96200 = 34.874… → 34.9
-	if ys.Total.Count != 100 {
-		t.Errorf("Total count = %d, want 100", ys.Total.Count)
+	assertDec(t, "Total saving", ys.Total.Saving, "13000")
+	assertDec(t, "Total investment", ys.Total.Investment, "1499.50")
+	assertDec(t, "Total left over", ys.Total.LeftOver, "19049.75")
+	assertRate(t, "Total rate", ys.Total.SavingsRate, "15.1") // 14499.50 / 96200 = 15.07… → 15.1
+	if ys.Total.Count != 106 {
+		t.Errorf("Total count = %d, want 106", ys.Total.Count)
 	}
+}
+
+func TestYearSummary_IncomeAndExpenseOnly(t *testing.T) {
+	// Nothing put aside: everything not spent is left over, and the rate is 0.
+	ys := BuildYearSummary(2026, []repository.MonthTypeTotal{
+		row(6, "income", "47868.00", 3),
+		row(6, "expense", "53823.00", 15),
+	})
+	jun := ys.Months[5]
+	assertDec(t, "Jun left over", jun.LeftOver, "-5955") // spent more than earned
+	assertRate(t, "Jun rate", jun.SavingsRate, "0")
 }
 
 func TestYearSummary_EmptyYear(t *testing.T) {
@@ -119,7 +142,7 @@ func TestYearSummary_EmptyYear(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertDec(t, "Total income", ys.Total.Income, "0")
-	assertDec(t, "Total saved", ys.Total.Saved, "0")
+	assertDec(t, "Total left over", ys.Total.LeftOver, "0")
 	assertRate(t, "Total rate", ys.Total.SavingsRate, "")
 }
 

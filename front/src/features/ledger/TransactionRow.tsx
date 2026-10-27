@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 
 import { ApiError } from '../../lib/api'
-import { useDeleteTransaction, useUpdateTransaction, type Item, type Transaction } from './api'
-import { cleanAmount, formatSatang, isValidAmount, toSatang } from './money'
+import { useDeleteTransaction, useSetPaid, useUpdateTransaction, type Item, type Transaction } from './api'
+import { cleanAmount, isValidAmount } from './money'
+import { amountText, canWithdraw, TYPE_CLASS, TYPE_LABEL } from './types'
 
 interface Props {
   txn: Transaction
@@ -17,7 +18,7 @@ interface Props {
 export function TransactionRow({ txn, items, editing, onEdit, onClose, onMessage }: Props) {
   const [confirming, setConfirming] = useState(false)
   const del = useDeleteTransaction()
-  const income = txn.type === 'income'
+  const setPaid = useSetPaid()
 
   if (editing) {
     return <EditForm txn={txn} items={items} onClose={onClose} onMessage={onMessage} />
@@ -27,7 +28,7 @@ export function TransactionRow({ txn, items, editing, onEdit, onClose, onMessage
     return (
       <li className="txn txn-confirm">
         <span className="txn-confirm-text">
-          Delete <b>{txn.item_name}</b> · {income ? '+' : '−'}{formatSatang(toSatang(txn.amount))}?
+          Delete <b>{txn.item_name}</b> · {amountText(txn.type, txn.amount)}?
         </span>
         <span className="txn-actions">
           <button
@@ -54,9 +55,24 @@ export function TransactionRow({ txn, items, editing, onEdit, onClose, onMessage
     )
   }
 
+  const doneWord = txn.type === 'income' ? 'Received' : 'Paid'
+
   return (
-    <li className="txn">
-      <span className={`txn-tag${income ? ' in' : ''}`} aria-hidden="true">
+    <li className={`txn${txn.is_paid ? '' : ' unpaid'}`}>
+      <label className="paid-check" title={txn.is_paid ? doneWord : `Not ${doneWord.toLowerCase()} yet`}>
+        <input
+          type="checkbox"
+          checked={txn.is_paid}
+          aria-label={`${doneWord}: ${txn.item_name}`}
+          onChange={(e) =>
+            setPaid.mutate(
+              { id: txn.id, isPaid: e.target.checked },
+              { onError: () => onMessage("Couldn't save the tick. Try again.") },
+            )
+          }
+        />
+      </label>
+      <span className={`txn-tag ${TYPE_CLASS[txn.type]}`} aria-hidden="true">
         {txn.category_name.slice(0, 2)}
       </span>
       <div className="txn-main">
@@ -64,11 +80,11 @@ export function TransactionRow({ txn, items, editing, onEdit, onClose, onMessage
         <small>
           {txn.category_name}
           {txn.note && ` · ${txn.note}`}
+          {!txn.is_paid && <span className="unpaid-note"> · not {doneWord.toLowerCase()} yet</span>}
         </small>
       </div>
-      <span className={`txn-amt ${income ? 'up' : 'down'}`}>
-        {income ? '+' : '−'}
-        {formatSatang(toSatang(txn.amount))}
+      <span className={`txn-amt ${TYPE_CLASS[txn.type]}`}>
+        {amountText(txn.type, txn.amount)}
       </span>
       <span className="txn-actions">
         <button type="button" className="icon-btn txn-btn" aria-label={`Edit ${txn.item_name}`} title="Edit" onClick={onEdit}>
@@ -91,7 +107,8 @@ export function TransactionRow({ txn, items, editing, onEdit, onClose, onMessage
 function EditForm({ txn, items, onClose, onMessage }: Omit<Props, 'editing' | 'onEdit'>) {
   const update = useUpdateTransaction()
   const [itemId, setItemId] = useState(String(txn.item_id))
-  const [amount, setAmount] = useState(txn.amount)
+  const [amount, setAmount] = useState(txn.amount.replace(/^-/, ''))
+  const [withdraw, setWithdraw] = useState(txn.amount.startsWith('-'))
   const [date, setDate] = useState(txn.txn_date)
   const [note, setNote] = useState(txn.note)
   const [error, setError] = useState<string | null>(null)
@@ -100,9 +117,13 @@ function EditForm({ txn, items, onClose, onMessage }: Omit<Props, 'editing' | 'o
   const choices = items.filter((i) => i.is_active || i.id === txn.item_id)
   const groups = new Map<string, Item[]>()
   for (const i of choices) {
-    const label = `${i.category_name} (${i.type})`
+    const label = `${i.category_name} (${TYPE_LABEL[i.type]})`
     groups.set(label, [...(groups.get(label) ?? []), i])
   }
+
+  // The picked item decides the type, and only savings / investments can be taken out.
+  const pickedType = choices.find((i) => String(i.id) === itemId)?.type ?? txn.type
+  const showDirection = canWithdraw(pickedType)
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -111,7 +132,7 @@ function EditForm({ txn, items, onClose, onMessage }: Omit<Props, 'editing' | 'o
     if (!date) return setError('Pick a date')
     setError(null)
     update.mutate(
-      { id: txn.id, item_id: Number(itemId), amount: value, txn_date: date, note: note.trim() },
+      { id: txn.id, item_id: Number(itemId), amount: showDirection && withdraw ? `-${value}` : value, txn_date: date, note: note.trim() },
       {
         onSuccess: (t) => {
           onMessage(`Updated ${t.item_name}`)
@@ -148,6 +169,16 @@ function EditForm({ txn, items, onClose, onMessage }: Omit<Props, 'editing' | 'o
             ))}
           </select>
         </div>
+        {showDirection && (
+          <div className="type-toggle dir-toggle" role="group" aria-label="Direction">
+            <button type="button" aria-pressed={!withdraw} onClick={() => setWithdraw(false)}>
+              {pickedType === 'saving' ? 'Deposit' : 'Buy'}
+            </button>
+            <button type="button" aria-pressed={withdraw} onClick={() => setWithdraw(true)}>
+              {pickedType === 'saving' ? 'Withdraw' : 'Sell'}
+            </button>
+          </div>
+        )}
         <div className="two">
           <div className="field">
             <label htmlFor={id('amount')}>Amount</label>

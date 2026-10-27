@@ -840,6 +840,7 @@ Priority 4 · Monitoring (on passbook-ops)
     docker compose -f ops/docker-compose.yml ps    # grafana, prometheus, uptime-kuma: Up
     Grafana reads this password only on its first start. Changing ops/.env later does nothing. To reset it then:
     docker compose -f ops/docker-compose.yml exec grafana grafana cli admin reset-admin-password NEWPASS
+    cat ~/Personal-Site/ops/.env #Check Password
 
     Step 4: Log in and test
     Open http://192.168.1.44:3000 and log in as admin with the password from step 3.

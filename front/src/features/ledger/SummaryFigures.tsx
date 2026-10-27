@@ -9,6 +9,9 @@ interface Props {
 // Percentage change, or null when there is nothing to compare with.
 const change = (now: number, before: number) => (before > 0 ? ((now - before) / before) * 100 : null)
 
+// "−1,234.00" for negatives, so a withdrawal-heavy month reads correctly
+const signed = (n: number) => (n < 0 ? '−' : '') + formatMoney(Math.abs(n))
+
 export function SummaryFigures({ current, previous }: Props) {
   const short = MONTHS[current.month - 1].slice(0, 3)
   const prevName = previous ? MONTHS[previous.month - 1] : ''
@@ -29,23 +32,22 @@ export function SummaryFigures({ current, previous }: Props) {
         {expenseChange !== null && <Delta value={expenseChange} goodWhenUp={false} label={prevName} />}
       </div>
       <div className="fig">
-        <div className="eyebrow">Saved · {short}</div>
-        <div className={`fig-value ${current.saved >= 0 ? 'up' : 'down'}`}>
+        <div className="eyebrow">Saved &amp; invested · {short}</div>
+        <div className={`fig-value ${current.put >= 0 ? 'sv' : 'down'}`}>
           <small>฿</small>
-          {current.saved < 0 ? '−' : ''}
-          {formatMoney(Math.abs(current.saved))}
+          {signed(current.put)}
         </div>
-        <div className="delta">Income minus expenses</div>
+        <div className="delta">
+          Saving <span className="sv">{signed(current.saving)}</span> · Invest <span className="iv">{signed(current.investment)}</span>
+        </div>
       </div>
       <div className="fig">
         <div className="eyebrow">Savings rate</div>
         <div className="fig-value">{rate === null ? '—' : formatPercent(rate)}</div>
         <div className="meter"><i style={{ width: `${Math.max(0, Math.min(rate ?? 0, 100))}%` }} /></div>
-        {rate === null ? (
-          <div className="delta">No income this month yet</div>
-        ) : (
-          previous && previous.rate !== null && <div className="delta">{prevName}: {formatPercent(previous.rate)}</div>
-        )}
+        <div className="delta">
+          Left over <b className={current.leftOver >= 0 ? 'up' : 'down'}>฿{signed(current.leftOver)}</b>
+        </div>
       </div>
     </div>
   )

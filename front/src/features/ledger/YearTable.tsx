@@ -36,7 +36,8 @@ export function YearTable({ year, months, total, currentMonth, totalLabel, onPre
               <th>Month</th>
               <th>Income</th>
               <th>Expenses</th>
-              <th>Saved</th>
+              <th><span className="m-full">Saved &amp; invested</span><span className="m-short">Saved</span></th>
+              <th className="col-left">Left over</th>
               <th><span className="m-full">Savings rate</span><span className="m-short">Rate</span></th>
             </tr>
           </thead>
@@ -46,7 +47,7 @@ export function YearTable({ year, months, total, currentMonth, totalLabel, onPre
               if (!m) {
                 return (
                   <tr key={name} className="future">
-                    <td><MonthName name={name} /></td><td>—</td><td>—</td><td>—</td><td>—</td>
+                    <td><MonthName name={name} /></td><td>—</td><td>—</td><td>—</td><td className="col-left">—</td><td>—</td>
                   </tr>
                 )
               }
@@ -55,7 +56,8 @@ export function YearTable({ year, months, total, currentMonth, totalLabel, onPre
                   <td><MonthName name={name} /></td>
                   <td>{formatWhole(m.income)}</td>
                   <td>{formatWhole(m.expense)}</td>
-                  <td className={m.saved >= 0 ? 'up' : 'down'}>{formatWhole(m.saved)}</td>
+                  <td className={m.put >= 0 ? 'sv' : 'down'}>{formatWhole(m.put)}</td>
+                  <td className={`col-left ${m.leftOver >= 0 ? 'up' : 'down'}`}>{formatWhole(m.leftOver)}</td>
                   <td><Rate rate={m.rate} /></td>
                 </tr>
               )
@@ -66,7 +68,8 @@ export function YearTable({ year, months, total, currentMonth, totalLabel, onPre
               <td>{totalLabel}</td>
               <td>{formatWhole(total.income)}</td>
               <td>{formatWhole(total.expense)}</td>
-              <td className={total.saved >= 0 ? 'up' : 'down'}>{formatWhole(total.saved)}</td>
+              <td className={total.put >= 0 ? 'sv' : 'down'}>{formatWhole(total.put)}</td>
+              <td className={`col-left ${total.leftOver >= 0 ? 'up' : 'down'}`}>{formatWhole(total.leftOver)}</td>
               <td>{total.rate === null ? '—' : formatPercent(total.rate)}</td>
             </tr>
           </tfoot>
