@@ -34,6 +34,12 @@ export function AppHeader() {
             </svg>
             <span>Year</span>
           </NavLink>
+          <NavLink to="/categories">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 16.5h7M16.5 13v7" />
+            </svg>
+            <span>Categories</span>
+          </NavLink>
           <NavLink to="/import">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 4v11m0 0-4-4m4 4 4-4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />

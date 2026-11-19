@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
 
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { CategoriesPage } from './pages/CategoriesPage'
 import { HomePage } from './pages/HomePage'
 import { ImportPage } from './pages/ImportPage'
 import { LoginPage } from './pages/LoginPage'
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/year" element={<YearGridPage />} />
+        <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/import" element={<ImportPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -115,6 +115,30 @@ export function useCreateItem() {
   })
 }
 
+// Rename / hide / show. Names also appear in transaction lists and the yearly
+// grid, so those are refreshed too.
+export interface RenameOrToggle {
+  id: number
+  name?: string
+  is_active?: boolean
+}
+
+export function useUpdateCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: RenameOrToggle) => api<Category>(`/categories/${id}`, json('PUT', body)),
+    onSuccess: () => refreshLedger(qc),
+  })
+}
+
+export function useUpdateItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: RenameOrToggle) => api<Item>(`/items/${id}`, json('PUT', body)),
+    onSuccess: () => refreshLedger(qc),
+  })
+}
+
 export function useCreateTransaction() {
   const qc = useQueryClient()
   return useMutation({
