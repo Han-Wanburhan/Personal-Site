@@ -24,6 +24,12 @@ type CreateTransactionRequest struct {
 	IsPaid  bool            `json:"is_paid"` // default false: tick it once paid
 }
 
+// CreateTransactionsRequest saves several transactions at once (copy a month,
+// repeat monthly). All rows are checked first; one bad row saves nothing.
+type CreateTransactionsRequest struct {
+	Transactions []CreateTransactionRequest `json:"transactions" validate:"required,min=1,max=120,dive"`
+}
+
 // Pointers = optional. Send "note": "" to clear the note.
 type UpdateTransactionRequest struct {
 	ItemID  *uint            `json:"item_id" validate:"omitempty,gt=0"`
@@ -34,6 +40,10 @@ type UpdateTransactionRequest struct {
 }
 
 // ---------- Responses (JSON out) ----------
+
+type CreateTransactionsResponse struct {
+	Created int `json:"created"`
+}
 
 type TransactionResponse struct {
 	ID           uint      `json:"id"`

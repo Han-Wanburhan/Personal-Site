@@ -13,6 +13,22 @@ type MonthSummaryResponse struct {
 	TransactionCount int     `json:"transaction_count"`
 }
 
+// ItemYearResponse is one row of the yearly grid (GET /api/summary/items).
+type ItemYearResponse struct {
+	ItemID       uint     `json:"item_id"`
+	ItemName     string   `json:"item_name"`
+	CategoryID   uint     `json:"category_id"`
+	CategoryName string   `json:"category_name"`
+	Type         string   `json:"type"`
+	Months       []string `json:"months"` // always 12, "0.00" for empty months
+	Total        string   `json:"total"`
+}
+
+type ItemsSummaryResponse struct {
+	Year  int                `json:"year"`
+	Items []ItemYearResponse `json:"items"`
+}
+
 type SummaryResponse struct {
 	Year   int                    `json:"year"`
 	Months []MonthSummaryResponse `json:"months"` // always 12

@@ -51,6 +51,35 @@ func (h *TransactionHandler) List(c *fiber.Ctx) error {
 	return c.JSON(resp)
 }
 
+// CreateMany handles POST /api/transactions/batch: {"transactions": [...]}, 1-120 rows,
+// used to copy a month and to repeat an entry monthly. All rows or none are saved.
+func (h *TransactionHandler) CreateMany(c *fiber.Ctx) error {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		return fiber.ErrUnauthorized
+	}
+
+	var req dto.CreateTransactionsRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid JSON body (amount must be a number)")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return validationError(c, err)
+	}
+
+	n, err := h.txns.CreateMany(c.UserContext(), user.ID, req.Transactions)
+	if err != nil {
+		// same status codes as a single create, but keep the "row 3: ..." message
+		mapped := mapTransactionError(err)
+		var fe *fiber.Error
+		if errors.As(mapped, &fe) {
+			return fiber.NewError(fe.Code, err.Error())
+		}
+		return mapped
+	}
+	return c.Status(fiber.StatusCreated).JSON(dto.CreateTransactionsResponse{Created: n})
+}
+
 // Create handles POST /api/transactions
 func (h *TransactionHandler) Create(c *fiber.Ctx) error {
 	user, ok := middleware.CurrentUser(c)

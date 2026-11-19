@@ -1,8 +1,9 @@
 // GET /api/summary?year= (mirrors back/internal/dto/summary.go)
 
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { api } from '../../lib/api'
+import type { TxnType } from './api'
 import { toSignedSatang } from './money'
 
 export interface SummaryMonth {
@@ -22,13 +23,33 @@ export interface Summary {
   total: SummaryMonth
 }
 
-export const summaryKey = ['summary'] as const
+export const summaryKey = ['summary'] as const // also covers ['summary', 'items', year]
 
 export function useSummary(year: number, enabled = true) {
   return useQuery({
     queryKey: [...summaryKey, year],
     queryFn: () => api<Summary>(`/summary?year=${year}`),
     enabled,
+  })
+}
+
+// ---------- per item: the yearly grid (GET /api/summary/items) ----------
+
+export interface ItemYear {
+  item_id: number
+  item_name: string
+  category_id: number
+  category_name: string
+  type: TxnType
+  months: string[] // always 12, "0.00" for empty months
+  total: string
+}
+
+export function useItemsSummary(year: number) {
+  return useQuery({
+    queryKey: [...summaryKey, 'items', year],
+    queryFn: () => api<{ year: number; items: ItemYear[] }>(`/summary/items?year=${year}`),
+    placeholderData: keepPreviousData, // keep the old year on screen while the next one loads
   })
 }
 

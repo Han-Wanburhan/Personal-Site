@@ -123,6 +123,16 @@ export function useCreateTransaction() {
   })
 }
 
+// Saves several transactions at once (copy a month, repeat monthly): all or nothing.
+export function useCreateTransactions() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (list: TransactionInput[]) =>
+      api<{ created: number }>('/transactions/batch', json('POST', { transactions: list })),
+    onSuccess: () => refreshMoney(qc),
+  })
+}
+
 export function useUpdateTransaction() {
   const qc = useQueryClient()
   return useMutation({

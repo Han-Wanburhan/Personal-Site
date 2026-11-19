@@ -27,6 +27,7 @@ type TransactionRepository interface {
 	ListByUser(ctx context.Context, userID uint, from, to *time.Time) ([]TransactionView, error)
 	FindByIDForUser(ctx context.Context, id, userID uint) (*TransactionView, error)
 	Create(ctx context.Context, t *model.Transaction) error
+	CreateMany(ctx context.Context, list []model.Transaction) error
 	Update(ctx context.Context, t *model.Transaction) error
 	Delete(ctx context.Context, id uint) error
 }
@@ -80,6 +81,11 @@ func (r *transactionRepository) FindByIDForUser(ctx context.Context, id, userID 
 
 func (r *transactionRepository) Create(ctx context.Context, t *model.Transaction) error {
 	return r.db.WithContext(ctx).Create(t).Error
+}
+
+// CreateMany saves all rows in one INSERT statement: either every row is saved or none.
+func (r *transactionRepository) CreateMany(ctx context.Context, list []model.Transaction) error {
+	return r.db.WithContext(ctx).Create(&list).Error
 }
 
 func (r *transactionRepository) Update(ctx context.Context, t *model.Transaction) error {

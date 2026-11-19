@@ -14,6 +14,7 @@ import (
 // and remembers what it was asked for.
 type fakeSummaryRepo struct {
 	rows      []repository.MonthTypeTotal
+	itemRows  []repository.ItemMonthTotal
 	err       error
 	gotUserID uint
 	gotYear   int
@@ -24,6 +25,12 @@ func (f *fakeSummaryRepo) MonthlyTotals(_ context.Context, userID uint, year int
 	f.calls++
 	f.gotUserID, f.gotYear = userID, year
 	return f.rows, f.err
+}
+
+func (f *fakeSummaryRepo) ItemMonthlyTotals(_ context.Context, userID uint, year int) ([]repository.ItemMonthTotal, error) {
+	f.calls++
+	f.gotUserID, f.gotYear = userID, year
+	return f.itemRows, f.err
 }
 
 func d(s string) decimal.Decimal { return decimal.RequireFromString(s) }
@@ -177,5 +184,40 @@ func TestBuildYearSummary_IgnoresBadRows(t *testing.T) {
 	assertDec(t, "Total income", ys.Total.Income, "100")
 	if ys.Total.Count != 1 {
 		t.Errorf("Total count = %d, want 1", ys.Total.Count)
+	}
+}
+
+func cell(itemID uint, item, category, typ string, month int, total string) repository.ItemMonthTotal {
+	return repository.ItemMonthTotal{ItemID: itemID, ItemName: item, CategoryID: 1, CategoryName: category, Type: typ, Month: month, Total: d(total)}
+}
+
+func TestBuildItemYears(t *testing.T) {
+	got := BuildItemYears([]repository.ItemMonthTotal{
+		cell(10, "Salary", "Income", "income", 6, "36408.00"),
+		cell(10, "Salary", "Income", "income", 7, "36408.00"),
+		cell(20, "KTC", "Debt", "expense", 6, "18250.00"),
+		cell(20, "KTC", "Debt", "expense", 13, "99"), // no month 13: ignored
+		cell(30, "Fund", "Savings", "saving", 7, "-500.50"),
+	})
+	if len(got) != 3 {
+		t.Fatalf("got %d rows, want 3 (one per item)", len(got))
+	}
+	if got[0].ItemName != "Salary" || got[1].ItemName != "KTC" || got[2].ItemName != "Fund" {
+		t.Errorf("order = %s, %s, %s; want the repository order", got[0].ItemName, got[1].ItemName, got[2].ItemName)
+	}
+	assertDec(t, "Salary Jun", got[0].Months[5], "36408")
+	assertDec(t, "Salary Jan", got[0].Months[0], "0")
+	assertDec(t, "Salary total", got[0].Total, "72816")
+	assertDec(t, "KTC total", got[1].Total, "18250")
+	assertDec(t, "Fund Jul", got[2].Months[6], "-500.50")
+}
+
+func TestItems_InvalidYear(t *testing.T) {
+	repo := &fakeSummaryRepo{}
+	if _, err := NewSummaryService(repo).Items(context.Background(), 1, 1999); !errors.Is(err, ErrInvalidYear) {
+		t.Errorf("err = %v, want ErrInvalidYear", err)
+	}
+	if repo.calls != 0 {
+		t.Error("repository was called for an invalid year")
 	}
 }

@@ -1,30 +1,17 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router'
 
 import { AddFab } from '../components/AddFab'
 import { AppHeader } from '../components/AppHeader'
 import { useItems, useTransactions, type Transaction } from '../features/ledger/api'
+import { CopyMonth } from '../features/ledger/CopyMonth'
+import { monthLabel, monthRange, shiftMonth, shortMonthLabel } from '../features/ledger/dates'
 import { formatSatang, toSignedSatang } from '../features/ledger/money'
 import { NewTransactionForm } from '../features/ledger/NewTransactionForm'
 import { TransactionRow } from '../features/ledger/TransactionRow'
-import { MONTHS, todayISO } from '../lib/format'
+import { todayISO } from '../lib/format'
 
-// "2026-09" → { from: "2026-09-01", to: "2026-09-30" }
-function monthRange(ym: string) {
-  const [y, m] = ym.split('-').map(Number)
-  const lastDay = new Date(y, m, 0).getDate()
-  return { from: `${ym}-01`, to: `${ym}-${String(lastDay).padStart(2, '0')}` }
-}
-
-function shiftMonth(ym: string, delta: number) {
-  const [y, m] = ym.split('-').map(Number)
-  const d = new Date(y, m - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function monthLabel(ym: string) {
-  const [y, m] = ym.split('-').map(Number)
-  return `${MONTHS[m - 1]} ${y}`
-}
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 
 const dayLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -41,10 +28,15 @@ function byDay(list: Transaction[]) {
 
 export function TransactionsPage() {
   const thisMonth = todayISO().slice(0, 7)
-  const [month, setMonth] = useState(thisMonth)
+  // ?month=2026-06&item=12 (links from the Year grid): open that month, only that item
+  const [params, setParams] = useSearchParams()
+  const linkedMonth = params.get('month') ?? ''
+  const itemFilter = Number(params.get('item')) || null
+  const [month, setMonth] = useState(MONTH_RE.test(linkedMonth) ? linkedMonth : thisMonth)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [onlyUnpaid, setOnlyUnpaid] = useState(false)
+  const [copying, setCopying] = useState(false)
 
   const { from, to } = monthRange(month)
   const txnsQ = useTransactions(from, to)
@@ -73,11 +65,13 @@ export function TransactionsPage() {
     else if (t.type === 'expense' || v > 0) toPay += v
     else toReceive -= v // a planned withdrawal / sale: money coming back
   }
-  const shown = onlyUnpaid ? unpaid : list
+  const shown = (onlyUnpaid ? unpaid : list).filter((t) => itemFilter === null || t.item_id === itemFilter)
+  const filterName = itemFilter === null ? '' : itemsQ.data?.find((i) => i.id === itemFilter)?.name ?? 'one item'
   const signed = (satang: number) => (satang < 0 ? '−' : '') + formatSatang(Math.abs(satang))
 
   const goTo = (ym: string) => {
     setEditingId(null)
+    setCopying(false)
     setMonth(ym)
   }
 
@@ -99,6 +93,9 @@ export function TransactionsPage() {
           </button>
           <button type="button" className="icon-btn" aria-label="Next month" onClick={() => goTo(shiftMonth(month, 1))}>
             ›
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" aria-pressed={copying} onClick={() => setCopying((c) => !c)}>
+            Copy from {shortMonthLabel(shiftMonth(month, -1))}
           </button>
         </div>
       </div>
@@ -133,14 +130,32 @@ export function TransactionsPage() {
               </button>
             </div>
           </div>
-          {unpaid.length > 0 && (
+          {itemFilter !== null && (
+            <p className="filter-chip">
+              Only <b>{filterName}</b>
+              <button type="button" className="link-btn" onClick={() => setParams({}, { replace: true })}>
+                Show all
+              </button>
+            </p>
+          )}
+          {unpaid.length > 0 && !copying && (
             <p className="to-pay">
               Still to pay <b>฿{formatSatang(toPay)}</b>
               {toReceive > 0 && <> · to receive <b>฿{formatSatang(toReceive)}</b></>}
             </p>
           )}
 
-          {txnsQ.isError ? (
+          {copying ? (
+            <CopyMonth
+              month={month}
+              current={list}
+              onCancel={() => setCopying(false)}
+              onDone={(message) => {
+                setCopying(false)
+                setToast(message)
+              }}
+            />
+          ) : txnsQ.isError ? (
             <div className="empty-state">
               <p>Couldn't load transactions. Check that the API is running.</p>
               <button type="button" className="btn btn-sm" onClick={() => txnsQ.refetch()}>

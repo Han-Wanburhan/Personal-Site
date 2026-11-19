@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ var maxAmount = decimal.RequireFromString("9999999999.99")
 type TransactionService interface {
 	List(ctx context.Context, userID uint, from, to *time.Time) ([]repository.TransactionView, error)
 	Create(ctx context.Context, userID uint, req dto.CreateTransactionRequest) (*repository.TransactionView, error)
+	CreateMany(ctx context.Context, userID uint, reqs []dto.CreateTransactionRequest) (int, error)
 	Update(ctx context.Context, userID, id uint, req dto.UpdateTransactionRequest) (*repository.TransactionView, error)
 	Delete(ctx context.Context, userID, id uint) error
 }
@@ -104,6 +106,42 @@ func (s *transactionService) Create(ctx context.Context, userID uint, req dto.Cr
 		return nil, err
 	}
 	return s.txns.FindByIDForUser(ctx, t.ID, userID)
+}
+
+// CreateMany checks every row first (ownership, amount, date) and then saves them
+// in one INSERT, so a bad row saves nothing. Errors say which row: "row 3: ...".
+func (s *transactionService) CreateMany(ctx context.Context, userID uint, reqs []dto.CreateTransactionRequest) (int, error) {
+	types := map[uint]string{} // item id -> category type: each item is looked up once
+	list := make([]model.Transaction, 0, len(reqs))
+	for i, req := range reqs {
+		catType, seen := types[req.ItemID]
+		if !seen {
+			item, err := s.ownItem(ctx, userID, req.ItemID)
+			if err != nil {
+				return 0, fmt.Errorf("row %d: %w", i+1, err)
+			}
+			catType = item.CategoryType
+			types[req.ItemID] = catType
+		}
+		if err := checkAmount(req.Amount, catType); err != nil {
+			return 0, fmt.Errorf("row %d: %w", i+1, err)
+		}
+		date, err := ParseDate(req.TxnDate)
+		if err != nil {
+			return 0, fmt.Errorf("row %d: %w", i+1, err)
+		}
+		list = append(list, model.Transaction{
+			ItemID:  req.ItemID,
+			Amount:  req.Amount,
+			TxnDate: date,
+			Note:    noteOrNil(req.Note),
+			IsPaid:  req.IsPaid,
+		})
+	}
+	if err := s.txns.CreateMany(ctx, list); err != nil {
+		return 0, err
+	}
+	return len(list), nil
 }
 
 func (s *transactionService) find(ctx context.Context, userID, id uint) (*repository.TransactionView, error) {

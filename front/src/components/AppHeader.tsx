@@ -28,6 +28,12 @@ export function AppHeader() {
             </svg>
             <span>Transactions</span>
           </NavLink>
+          <NavLink to="/year">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 5h16v14H4zM4 10h16M4 15h16M9.5 5v14M15 5v14" />
+            </svg>
+            <span>Year</span>
+          </NavLink>
           <NavLink to="/import">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 4v11m0 0-4-4m4 4 4-4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />

@@ -6,6 +6,7 @@ import { ImportPage } from './pages/ImportPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { TransactionsPage } from './pages/TransactionsPage'
+import { YearGridPage } from './pages/YearGridPage'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/year" element={<YearGridPage />} />
         <Route path="/import" element={<ImportPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

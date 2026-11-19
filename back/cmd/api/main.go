@@ -90,10 +90,12 @@ func main() {
 	txns := api.Group("/transactions", requireAuth)
 	txns.Get("/", txnHandler.List)
 	txns.Post("/", txnHandler.Create)
+	txns.Post("/batch", txnHandler.CreateMany) // copy a month / repeat monthly, all or nothing
 	txns.Put("/:id", txnHandler.Update)
 	txns.Delete("/:id", txnHandler.Delete)
 
 	api.Get("/summary", requireAuth, summaryHandler.Year)
+	api.Get("/summary/items", requireAuth, summaryHandler.Items)  // the Excel-like yearly grid
 	api.Post("/import/sheets", requireAuth, importHandler.Sheets) // list the sheets of an uploaded workbook
 	api.Post("/import", requireAuth, importHandler.Excel)         // upload the old Excel workbook
 

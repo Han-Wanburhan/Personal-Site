@@ -35,8 +35,20 @@ type YearSummary struct {
 	Total  MonthSummary
 }
 
+// ItemYear is one row of the yearly grid: one item, twelve monthly totals.
+type ItemYear struct {
+	ItemID       uint
+	ItemName     string
+	CategoryID   uint
+	CategoryName string
+	Type         string
+	Months       [12]decimal.Decimal // January..December, zero when nothing was recorded
+	Total        decimal.Decimal
+}
+
 type SummaryService interface {
 	Year(ctx context.Context, userID uint, year int) (*YearSummary, error)
+	Items(ctx context.Context, userID uint, year int) ([]ItemYear, error)
 }
 
 type summaryService struct {
@@ -56,6 +68,41 @@ func (s *summaryService) Year(ctx context.Context, userID uint, year int) (*Year
 		return nil, err
 	}
 	return BuildYearSummary(year, rows), nil
+}
+
+func (s *summaryService) Items(ctx context.Context, userID uint, year int) ([]ItemYear, error) {
+	if year < 2000 || year > 2100 {
+		return nil, ErrInvalidYear
+	}
+	rows, err := s.summary.ItemMonthlyTotals(ctx, userID, year)
+	if err != nil {
+		return nil, err
+	}
+	return BuildItemYears(rows), nil
+}
+
+// BuildItemYears folds per-item, per-month cells into one row per item,
+// keeping the order the rows arrive in (the repository sorts them).
+func BuildItemYears(rows []repository.ItemMonthTotal) []ItemYear {
+	out := []ItemYear{}
+	index := map[uint]int{} // item id -> position in out
+	for _, r := range rows {
+		if r.Month < 1 || r.Month > 12 {
+			continue
+		}
+		i, ok := index[r.ItemID]
+		if !ok {
+			i = len(out)
+			index[r.ItemID] = i
+			out = append(out, ItemYear{
+				ItemID: r.ItemID, ItemName: r.ItemName,
+				CategoryID: r.CategoryID, CategoryName: r.CategoryName, Type: r.Type,
+			})
+		}
+		out[i].Months[r.Month-1] = out[i].Months[r.Month-1].Add(r.Total)
+		out[i].Total = out[i].Total.Add(r.Total)
+	}
+	return out
 }
 
 // BuildYearSummary turns per-month, per-type totals into a full year.

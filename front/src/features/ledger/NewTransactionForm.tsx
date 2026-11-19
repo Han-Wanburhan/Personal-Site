@@ -8,13 +8,16 @@ import {
   useCreateCategory,
   useCreateItem,
   useCreateTransaction,
+  useCreateTransactions,
   useItems,
   type TxnType,
 } from './api'
-import { cleanAmount, isValidAmount } from './money'
+import { monthsBetween, shiftDate, shiftMonth, shortMonthLabel } from './dates'
+import { cleanAmount, formatSatang, isValidAmount, toSatang } from './money'
 import { amountText, canWithdraw, TXN_TYPES, TYPE_EXAMPLE, TYPE_LABEL } from './types'
 
 const NEW = '__new' // select value that opens the "new category / new item" input
+const MAX_REPEAT = 59 // up to 60 months (5 years) in one go; the API takes 120 rows
 
 interface Props {
   onSaved: (message: string, txnDate: string) => void
@@ -26,6 +29,7 @@ export function NewTransactionForm({ onSaved }: Props) {
   const createCategory = useCreateCategory()
   const createItem = useCreateItem()
   const createTxn = useCreateTransaction()
+  const createMany = useCreateTransactions()
 
   const [type, setType] = useState<TxnType>('expense')
   const [withdraw, setWithdraw] = useState(false) // savings / investments only
@@ -36,6 +40,8 @@ export function NewTransactionForm({ onSaved }: Props) {
   const [date, setDate] = useState(todayISO)
   const [note, setNote] = useState('')
   const [paid, setPaid] = useState(false) // new transactions start unpaid; tick when it's done
+  const [repeat, setRepeat] = useState(false) // the same amount every month...
+  const [until, setUntil] = useState('') // ...up to and including this month ("2027-02")
   const [error, setError] = useState<string | null>(null)
 
   // Only active categories/items of the chosen type appear in the pickers.
@@ -105,6 +111,30 @@ export function NewTransactionForm({ onSaved }: Props) {
     setError(null)
 
     const signed = canWithdraw(type) && withdraw ? `-${value}` : value
+
+    if (repeat) {
+      if (repeatMonths < 1) return setError('Pick an "Until" month after the first one')
+      if (repeatMonths > MAX_REPEAT) return setError(`Repeat for at most ${MAX_REPEAT + 1} months at a time`)
+      const today = todayISO()
+      const rows = Array.from({ length: repeatMonths + 1 }, (_, i) => {
+        const d = shiftDate(date, i) // same day each month, or the month's last day
+        // "Already paid" only applies to dates that have come; future months start unpaid
+        return { item_id: Number(itemId), amount: signed, txn_date: d, note: note.trim(), is_paid: paid && d <= today }
+      })
+      const name = items.find((i) => String(i.id) === itemId)?.name ?? 'entry'
+      createMany.mutate(rows, {
+        onSuccess: (r) => {
+          setAmount('')
+          setNote('')
+          setPaid(false)
+          setRepeat(false)
+          onSaved(`Saved ${r.created} × ${name}`, date)
+        },
+        onError: (err) => setError(err instanceof ApiError ? err.message : "Couldn't save. Check that the API is running."),
+      })
+      return
+    }
+
     createTxn.mutate(
       { item_id: Number(itemId), amount: signed, txn_date: date, note: note.trim(), is_paid: paid },
       {
@@ -120,6 +150,10 @@ export function NewTransactionForm({ onSaved }: Props) {
   }
 
   const loading = categoriesQ.isPending || itemsQ.isPending
+  const firstMonth = (date || todayISO()).slice(0, 7)
+  const repeatMonths = until ? monthsBetween(firstMonth, until) : 0 // extra months after the first
+  const value = cleanAmount(amount)
+  const repeatTotal = isValidAmount(value) ? toSatang(value) * (repeatMonths + 1) : 0
 
   return (
     <section className="panel add-panel" id={ADD_FORM_ID}>
@@ -254,13 +288,51 @@ export function NewTransactionForm({ onSaved }: Props) {
           </div>
         </div>
 
+        <label className="check" htmlFor="new-repeat">
+          <input
+            id="new-repeat"
+            type="checkbox"
+            checked={repeat}
+            onChange={(e) => {
+              setRepeat(e.target.checked)
+              if (e.target.checked && !until) setUntil(shiftMonth(firstMonth, 2)) // a 3-month start, easy to change
+            }}
+          />
+          Repeat every month
+        </label>
+
+        {repeat && (
+          <div className="field">
+            <label htmlFor="new-until">Until (included)</label>
+            <input
+              id="new-until"
+              className="input"
+              type="month"
+              min={shiftMonth(firstMonth, 1)}
+              max={shiftMonth(firstMonth, MAX_REPEAT)}
+              value={until}
+              onChange={(e) => setUntil(e.target.value)}
+            />
+            <span className="field-hint">
+              {repeatMonths >= 1
+                ? `${repeatMonths + 1} entries, ${shortMonthLabel(firstMonth)} – ${shortMonthLabel(until)}, same day each month` +
+                  (repeatTotal ? ` · ฿${formatSatang(repeatTotal)} in total` : '')
+                : 'Pick a month after the first one'}
+            </span>
+          </div>
+        )}
+
         <label className="check" htmlFor="new-paid">
           <input id="new-paid" type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
           Already {type === 'income' ? 'received' : 'paid'}
         </label>
 
-        <button className="btn" type="submit" disabled={createTxn.isPending}>
-          {createTxn.isPending ? 'Saving…' : 'Save transaction'}
+        <button className="btn" type="submit" disabled={createTxn.isPending || createMany.isPending}>
+          {createTxn.isPending || createMany.isPending
+            ? 'Saving…'
+            : repeat && repeatMonths >= 1
+              ? `Save ${repeatMonths + 1} transactions`
+              : 'Save transaction'}
         </button>
       </form>
     </section>
